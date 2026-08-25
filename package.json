@@ -8,6 +8,13 @@
     "node": ">=18.17.0"
   },
   "scripts": {
-    "start:app": "node app-under-test/server.mjs"
+    "start:app": "node app-under-test/server.mjs",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@types/node": "^26.3.0",
+    "typescript": "^7.0.2"
   }
 }

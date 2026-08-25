@@ -37,6 +37,8 @@ button. No framework required. Served locally on a fixed port.
 
 ### Task 1.2 — Write the baseline Playwright suite
 
+**Status:** ✅ Done — see `plans/1.2.md`.
+
 Five specs in `tests/`, all passing against the pristine app.
 
 **Acceptance criteria:**
