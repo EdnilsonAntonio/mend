@@ -10,7 +10,10 @@
   "scripts": {
     "start:app": "node app-under-test/server.mjs",
     "test:e2e": "playwright test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "break:on": "node breakage/apply.mjs on",
+    "break:off": "node breakage/apply.mjs off",
+    "break:status": "node breakage/apply.mjs status"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

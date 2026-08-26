@@ -14,17 +14,27 @@ Playwright will automatically start the application via `webServer` configuratio
 
 | Spec file | Drift-target locator | Task 1.3 scenario | Expected failure signature |
 | --- | --- | --- | --- |
-| `tests/login-submit.spec.ts` | `#login-btn` | 1 — renamed `id` | action timeout waiting for `locator('#login-btn')` |
-| `tests/cart-add.spec.ts` | `.add-to-cart` | 2 — renamed class | action timeout waiting for `locator('.add-to-cart')` |
-| `tests/product-price.spec.ts` | `#product-card > .product-card__price` | 3 — DOM restructure | `toBeVisible` failed, locator resolved to 0 elements |
-| `tests/login-validation.spec.ts` | `button:has-text("Sign In")` | 4 — text changed | `toBeVisible` failed, locator resolved to 0 elements |
-| `tests/remember-preference.spec.ts` | `#remember-me` | 5 — element removed | `toBeVisible` failed, locator resolved to 0 elements; no valid replacement exists |
+| `tests/login-submit.spec.ts` | `#login-btn` | 1 — renamed `id` | `locator.click: Timeout 5000ms exceeded.` |
+| `tests/cart-add.spec.ts` | `.add-to-cart` | 2 — renamed class | `locator.click: Timeout 5000ms exceeded.` |
+| `tests/product-price.spec.ts` | `#product-card > .product-card__price` | 3 — DOM restructure | `expect(locator).toBeVisible() failed` |
+| `tests/login-validation.spec.ts` | `button:has-text("Sign In")` | 4 — text changed | `expect(locator).toBeVisible() failed` |
+| `tests/remember-preference.spec.ts` | `#remember-me` | 5 — element removed | `expect(locator).toBeVisible() failed` |
 
 ## JSON results contract
 
 - `npm run test:e2e` writes Playwright JSON results to `test-results/results.json`
 - Playwright artifacts (traces, etc.) go to `test-results/artifacts/`
 - Both directories are gitignored
+
+## Reproducing the failures
+
+To trigger all five failures and verify the self-healing system:
+
+```sh
+npm run break:on
+npm run test:e2e   # 5 failed
+npm run break:off
+```
 
 ## Suite invariants
 

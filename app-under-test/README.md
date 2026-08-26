@@ -30,14 +30,31 @@ The app is served at http://localhost:3100.
 
 ## Reserved hooks
 
-The following selectors are wired to `app.js` and **must not** be renamed or restructured by any drift script:
+The following selectors are wired to `app.js`. Any drift scenario must preserve **all** of the following, or the seeded failure stops being selector drift and becomes an application failure — the exact category this system is required to refuse to heal:
 
-- `#login-form`
-- `#login-status`
-- `#product-card`
-- `#cart-count`
-- `#cart-status`
+- `#login-form`, `#login-status`, `#product-card`, `#cart-count`, `#cart-status` keep their `id` attributes.
+- `#login-form` still contains one `input[type="email"]` and one `input[type="password"]` descendant.
+- `#product-card` still contains exactly one `<button>` descendant.
+
+Non-behavioural descendants of these elements **may** be re-parented — Task 1.3 scenario 3 does exactly that to `.product-card__price`. What is forbidden is breaking the relationships listed above.
 
 ## No `data-*` attributes
 
 No attribute beginning with `data-` appears anywhere in `index.html`. This is a hard rule: a `data-testid` would give baseline tests a selector that never drifts, which would silently invalidate the entire self-healing test phase.
+
+## Breakage
+
+The committed `index.html` file is always in its pristine state. Selector-drift scenarios for testing are applied by swapping the file at runtime with two committed variants:
+
+- `npm run break:on` — swaps `index.html` with the broken variant, enabling the five seeded drift scenarios
+- `npm run break:off` — restores the pristine variant and resets the app to working order
+
+The variants and toggle script live in `breakage/`; see `breakage/README.md` for details on the toggle mechanism and the five scenarios:
+
+| # | Scenario | Drift |
+| --- | --- | --- |
+| 1 | renamed `id` | `#login-btn` → `#signin-button` |
+| 2 | renamed class | `.add-to-cart` → `.purchase-button` |
+| 3 | DOM restructure | `.product-card__price` wrapped in `<div class="product-card__meta">` |
+| 4 | text changed | `Sign In` → `Log In` |
+| 5 | element removed | `<label class="field field--inline">` block with `#remember-me` deleted |

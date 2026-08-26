@@ -50,6 +50,8 @@ Five specs in `tests/`, all passing against the pristine app.
 
 ### Task 1.3 — Seed the five breakage scenarios
 
+**Status:** ✅ Done — see `plans/1.3.md`.
+
 Introduce deliberate drift into `app-under-test/`, controlled by a script so breakage can
 be toggled on and off for demos.
 

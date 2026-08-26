@@ -145,7 +145,11 @@ body {
   color: #6b7280;
 }
 
-.add-to-cart {
+/* Both class names are styled: the drifted markup in breakage/ renames
+   .add-to-cart to .purchase-button, and the page must render identically
+   in both states so the toggle only ever rewrites index.html. */
+.add-to-cart,
+.purchase-button {
   padding: 0.75rem 1.5rem;
   background-color: #10b981;
   color: #ffffff;
@@ -156,7 +160,8 @@ body {
   cursor: pointer;
 }
 
-.add-to-cart:hover {
+.add-to-cart:hover,
+.purchase-button:hover {
   background-color: #059669;
 }
 

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Acme Store</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <nav id="main-nav" class="main-nav">
+      <span class="main-nav__brand">Acme Store</span>
+      <ul class="main-nav__links">
+        <li><a id="nav-home" class="nav-link" href="#home">Home</a></li>
+        <li><a id="nav-products" class="nav-link" href="#products">Products</a></li>
+        <li><a id="nav-cart" class="nav-link" href="#cart">Cart (<span id="cart-count">0</span>)</a></li>
+      </ul>
+    </nav>
+
+    <main class="page">
+      <section id="login-panel" class="panel">
+        <h1 class="panel__title">Welcome back</h1>
+        <form id="login-form" class="login-form" novalidate>
+          <label class="field">
+            <span class="field__label">Email</span>
+            <input id="email" class="field__input" type="email" name="email" placeholder="you@example.com" />
+          </label>
+          <label class="field">
+            <span class="field__label">Password</span>
+            <input id="password" class="field__input" type="password" name="password" placeholder="Your password" />
+          </label>
+          <button id="signin-button" class="btn btn--primary" type="submit">Log In</button>
+        </form>
+        <p id="login-status" class="status" role="status"></p>
+      </section>
+
+      <section id="product-panel" class="panel">
+        <h2 class="panel__title">Featured product</h2>
+        <article id="product-card" class="product-card">
+          <h3 class="product-card__title">Wireless Headphones</h3>
+          <div class="product-card__meta">
+            <span class="product-card__price">$149.00</span>
+          </div>
+          <p class="product-card__description">Over-ear, 30 hour battery life.</p>
+          <button class="purchase-button" type="button">Add to Cart</button>
+        </article>
+        <p id="cart-status" class="status" role="status"></p>
+      </section>
+    </main>
+
+    <script src="/app.js" defer></script>
+  </body>
+</html>
