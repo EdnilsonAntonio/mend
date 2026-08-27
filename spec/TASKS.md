@@ -92,6 +92,8 @@ standalone, driven by a plain script, with no model involved.
 
 ### Task 2.1 — `get_dom_snapshot`
 
+**Status:** ✅ Done — see `plans/2.1.md`.
+
 Capture the page DOM at failure point and prune it (strip scripts, styles, inline data,
 comments) to a token-bounded representation.
 

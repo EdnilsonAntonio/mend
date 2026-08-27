@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "name": "self-healing-e2e-tests",
   "version": "0.1.0",
   "private": true,
@@ -10,14 +11,17 @@
   "scripts": {
     "start:app": "node app-under-test/server.mjs",
     "test:e2e": "playwright test",
+    "test:tools": "playwright test --config=playwright.tools.config.ts",
     "typecheck": "tsc --noEmit",
     "break:on": "node breakage/apply.mjs on",
     "break:off": "node breakage/apply.mjs off",
-    "break:status": "node breakage/apply.mjs status"
+    "break:status": "node breakage/apply.mjs status",
+    "tool:dom-snapshot": "tsx agent/tools/cli/get-dom-snapshot.cli.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "@types/node": "^26.3.0",
+    "tsx": "^4.20.0",
     "typescript": "^7.0.2"
   }
 }
