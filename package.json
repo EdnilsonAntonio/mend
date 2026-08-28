@@ -16,7 +16,8 @@
     "break:on": "node breakage/apply.mjs on",
     "break:off": "node breakage/apply.mjs off",
     "break:status": "node breakage/apply.mjs status",
-    "tool:dom-snapshot": "tsx agent/tools/cli/get-dom-snapshot.cli.ts"
+    "tool:dom-snapshot": "tsx agent/tools/cli/get-dom-snapshot.cli.ts",
+    "tool:query-selector": "tsx agent/tools/cli/query-selector.cli.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

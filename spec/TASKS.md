@@ -106,6 +106,8 @@ comments) to a token-bounded representation.
 
 ### Task 2.2 — `query_selector`
 
+**Status:** ✅ Done — see `plans/2.2.md`.
+
 Given a candidate selector, report how many elements match and a short text preview of
 each — without committing to anything.
 
