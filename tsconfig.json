@@ -17,6 +17,7 @@
   "include": [
     "playwright.config.ts",
     "playwright.tools.config.ts",
+    "playwright.verify.config.ts",
     "tests/**/*.ts",
     "agent/**/*.ts"
   ]

@@ -271,3 +271,241 @@ Without `--silent`, `npm` prepends a `> pkg@version script` banner to **stdout**
 - **Tool-schema registration** (Phase 3): No model/LLM integration, no confidence scoring.
 - **Confidence scoring.** `matchCount` is an input to the Phase 3 confidence gate; the gate itself is Task 3.4.
 - **Persistence.** No database, no writing results anywhere.
+
+## run_single_test
+
+The third and final deterministic tool. Verifies a candidate selector by substituting it into a temporary copy of the spec file, running the real test via Playwright, and examining the JSON report. **A fix is only ever accepted because the test was re-executed and passed.**
+
+### Public API
+
+```typescript
+export async function runSingleTest(
+  input: RunSingleTestInput,
+): Promise<RunSingleTestResult>;
+
+export async function verifySpecSource(
+  input: VerifySpecSourceInput,
+): Promise<RunSingleTestResult>;
+
+export function applySelectorSubstitution(
+  originalSource: string,
+  originalSelector: string,
+  candidateSelector: string,
+): SubstitutionResult;
+
+export function checkAssertionIntegrity(
+  originalSource: string,
+  proposedSource: string,
+  allowedLiteralChange: AllowedLiteralChange | null,
+): AssertionIntegrityResult;
+
+export function diffChangedLines(
+  originalSource: string,
+  proposedSource: string,
+): readonly SpecLineChange[];
+
+export interface RunSingleTestInput {
+  readonly specFile: string;
+  readonly testName: string;
+  readonly originalSelector: string;
+  readonly candidateSelector: string;
+  readonly timeoutMs?: number;
+}
+
+export interface VerifySpecSourceInput {
+  readonly specFile: string;
+  readonly testName: string;
+  readonly proposedSource: string;
+  readonly allowedLiteralChange: AllowedLiteralChange | null;
+  readonly timeoutMs?: number;
+}
+
+export interface RunSingleTestResult {
+  readonly passed: boolean;
+  readonly output: string;
+  readonly executed: boolean;
+  readonly exitCode: number | null;
+  readonly timedOut: boolean;
+  readonly rejected: VerificationRejection | null;
+  readonly violations: readonly IntegrityViolation[];
+  readonly specFile: string;
+  readonly testName: string;
+  readonly originalSelector: string;
+  readonly candidateSelector: string;
+  readonly proposedSource: string | null;
+  readonly changedLines: readonly SpecLineChange[];
+  readonly durationMs: number;
+}
+
+export interface SubstitutionResult {
+  readonly ok: boolean;
+  readonly proposedSource: string | null;
+  readonly fromLiteral: string | null;
+  readonly toLiteral: string | null;
+  readonly occurrences: number;
+  readonly failure: SubstitutionFailure | null;
+  readonly detail: string;
+}
+
+export interface AssertionIntegrityResult {
+  readonly ok: boolean;
+  readonly violations: readonly IntegrityViolation[];
+}
+
+export interface IntegrityViolation {
+  readonly rule: IntegrityRuleId;
+  readonly detail: string;
+}
+
+export interface SpecLineChange {
+  readonly lineNumber: number;
+  readonly before: string;
+  readonly after: string;
+}
+```
+
+### The Pipeline
+
+1. Read original spec and compute its SHA-256 hash
+2. Substitute the candidate selector for the original (single exact string-literal replacement)
+3. **Integrity gate** (runs before anything is written or spawned):
+   - Rule-based checks on raw source that reject any removal, weakening, or skipping of assertions
+   - `executed: false` in the result is the observable proof that nothing was written
+4. Write proposed source to a temp directory (`mend-tmp/run-XXXXXX/`)
+5. Spawn a real `playwright test` child process with the temp copy
+6. Collect stdout and stderr, parse the JSON report
+7. Re-read the original and verify its hash is unchanged
+8. Delete the temp directory in a `finally` block
+
+### How `passed` Is Decided
+
+```
+passed = exitCode === 0
+  && !timedOut
+  && stats.expected === 1
+  && stats.unexpected === 0
+  && stats.flaky === 0
+  && stats.skipped === 0
+```
+
+`passed` is computed from the child's exit code, timeout flag, and the JSON report's stats object. It is **never** derived from parsing stdout for `"1 passed"` or any human-readable text. `retries: 0` in `playwright.verify.config.ts` ensures a flaky pass cannot be recorded as a heal.
+
+### Assertion Integrity
+
+The integrity gate rejects the proposed source **before any child process is spawned** if any of these eight rules are violated:
+
+| # | Rule | Pattern | Violation |
+| --- | --- | --- | --- |
+| 1 | `expect-count` | `/\bexpect\s*\(/g` | proposed count **<** original |
+| 2 | `matcher-inventory` | for each of 45 Playwright matchers | any proposed count **≠** original |
+| 3 | `negation-count` | `/\.not\b/g` | proposed count **≠** original |
+| 4 | `await-count` | `/\bawait\b/g` | proposed count **≠** original |
+| 5 | `skip-only` | `/\.\s*(?:skip\|only\|fixme\|fail\|soft)\b/g` | proposed count **>** original |
+| 6 | `comment-count` | `/\/\/\|\/\*/g` | proposed count **>** original |
+| 7 | `line-count` | `source.split('\n').length` | proposed count **≠** original |
+| 8 | `string-literals` | multiset comparison via regex | unexpected changes except the allowed selector substitution |
+
+#### What This Stops
+
+The gate prevents:
+- Deleting an assertion line entirely (rules 1, 7)
+- Commenting out an assertion (rule 6)
+- Adding `test.skip()`, `test.only()`, `.soft()` (rule 5)
+- Swapping a strict matcher for a loose one (rule 2)
+- Adding or removing `.not` (rule 3)
+- Dropping an `await` before a promise (rule 4)
+- Changing an expected-value string literal to something weaker (rule 8)
+
+`forbidOnly: true` in `playwright.verify.config.ts` is a second, independent line of defence against `.only`.
+
+### Candidate Selector Safety
+
+Before substitution is attempted, the candidate selector is validated for injection attacks:
+
+- **Empty or whitespace:** rejected as `unsafe-candidate-selector`
+- **Exceeds 200 characters:** rejected as `unsafe-candidate-selector`
+- **Contains a forbidden substring** (`\n`, `\r`, `\`, `` ` ``, `${`): rejected as `unsafe-candidate-selector`
+- **Identical to the original:** rejected as `candidate-identical-to-original`
+- **Contains both `'` and `"`:** rejected as `unsafe-candidate-selector` (disqualifies it from being safely quoted)
+
+A candidate containing `#x'); test.skip(); ('` is rejected, never reaches the source.
+
+### The Temp Copy
+
+Each call creates a unique directory at `mend-tmp/run-XXXXXX/` (repo root, gitignored), containing a single copy of the spec file with the proposed selector substituted. Nothing is ever written into `tests/`. The original is hashed before and after every call; if the post-call hash differs, `rejected: 'original-spec-mutated'` and `passed: false`. The root `mend-tmp/` directory itself is durable — created on demand, never removed — and an empty `mend-tmp/` remaining in the working tree is the expected steady state, the same way Playwright leaves `test-results/` behind.
+
+### Bounds
+
+- **Timeout:** `RUN_SINGLE_TEST_TIMEOUT_MS = 90_000` (90 seconds); overrideable per call
+- **Output clamping:** `RUN_SINGLE_TEST_MAX_OUTPUT_CHARS = 8_000` (head + tail of child output)
+- **One child process** per call, killed at the timeout with `SIGKILL`
+- **Zero retries:** `playwright.verify.config.ts` sets `retries: 0`
+
+### Rejection Codes
+
+| Rejection Code | When It Occurs | `executed` |
+| --- | --- | --- |
+| `spec-file-unreadable` | spec path cannot be read at the start | `false` |
+| `unsafe-candidate-selector` | candidate fails the injection validation | `false` |
+| `candidate-identical-to-original` | candidate === original | `false` |
+| `selector-not-found` | original selector literal not found in spec source | `false` |
+| `selector-ambiguous` | original selector occurs more than once in source | `false` |
+| `assertion-integrity` | integrity gate violation detected | `false` |
+| `original-spec-mutated` | original file's hash changed after the call | `true` |
+| `results-unavailable` | child ran but JSON report could not be read or parsed | `true` |
+
+### Running Standalone
+
+Start the app (if needed):
+```sh
+npm run start:app                                            # in another shell
+```
+
+Contract form — stdout is exactly the tool's output:
+```sh
+npx tsx agent/tools/cli/run-single-test.cli.ts \
+  --spec=tests/login-submit.spec.ts \
+  --test='submitting valid credentials updates the login status' \
+  --original='#login-btn' --candidate='#login-form #login-btn'
+
+npx tsx agent/tools/cli/run-single-test.cli.ts --spec=... --test=... \
+  --original=... --candidate=... --json
+```
+
+Convenience form — note `--silent`, which suppresses npm's script banner:
+```sh
+npm run --silent tool:run-single-test -- --spec=tests/login-submit.spec.ts \
+  --test='submitting valid credentials updates the login status' \
+  --original='#login-btn' --candidate='#login-form #login-btn'
+```
+
+**Exit codes:**
+- `0` = verification **passed**
+- `3` = a result was produced but verification did **not** pass (executed and failed, or rejected before execution)
+- `2` = CLI usage error (missing or empty required argument)
+- `1` = the tool itself threw (spec file cannot be read, spawn failure, etc.)
+
+This **differs from `query_selector`**, which exits `0` for any produced result including a structured error. Here, `run_single_test` is the verification gate — its exit code must distinguish success (`0`) from any form of failure (`3` or lower). A shell script doing `run-single-test ... && mark_healed` must not mark a heal when the test failed.
+
+Without `--silent`, `npm` prepends a `> pkg@version script` banner to **stdout**, so `npm run tool:run-single-test -- --json` does not produce parseable JSON. That is npm's output, not the tool's. Do not add a `.npmrc` to work around it.
+
+### Known Limitations (v1)
+
+1. **Temp directory, not beside the original.** The temp copy lives at `mend-tmp/run-XXXXXX/`, not alongside the original in `tests/`. A spec that imports a relative helper (`../fixtures/helper.ts`) would fail to resolve. All baseline specs import only `@playwright/test`, so this limitation has zero impact today and is recorded as a documented v1 constraint.
+
+2. **Single quoted string literal, exactly once.** The selector must appear as a single quoted string literal occurring exactly once in the file. `tests/README.md` guarantees this for the baseline suite. Selectors built by concatenation, template interpolation, or held in shared constants are not supported.
+
+3. **Regex-based gate, not AST-based.** The integrity gate uses pattern matching on raw source, not an abstract syntax tree. Occurrence counts include text inside strings and comments. Because every rule compares the *same* function's output on both sources, this biases strictly toward false **rejection**, never false acceptance.
+
+4. **Regex-based literal extraction.** `extractStringLiterals` does not handle nested template-literal interpolation. Candidates containing `${` are rejected outright, so this cannot be exploited.
+
+5. **One test, one title.** Only one test is selected per call via `--grep` on the exact title. A duplicate test title in the same file would match two tests and `passed` would be `false` (`stats.expected === 2`).
+
+### Not In This Tool
+
+- **Selector generation or repair suggestions.** This tool verifies a candidate the caller supplies. It never proposes one.
+- **Failure classification** (Task 3.1) or confidence scoring (Task 3.4). `passed`, `executed` and `violations` are inputs to those phases.
+- **Persistence.** No database, no writing results anywhere except stdout and the transient temp directory.
+- **PR creation, branches, commits, or Octokit** (Task 5.1).
+- **Modifying the baseline suite.** `tests/`, `app-under-test/`, and `breakage/` are never edited under any circumstances.
+- **LLM integration.** No tool-schema registration (Phase 3), no API key handling.

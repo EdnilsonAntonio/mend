@@ -120,6 +120,8 @@ each — without committing to anything.
 
 ### Task 2.3 — `run_single_test` with assertion-integrity check
 
+**Status:** ✅ Done — see `plans/2.3.md`.
+
 Copy the spec to a temp file, substitute only the failing selector, diff against the
 original, reject any assertion weakening, then execute that single test.
 
