@@ -165,6 +165,8 @@ Rule-based mapping from Playwright error output to `selector-drift` vs `other`.
 
 ### Task 3.2 — Tool-calling loop against scenario 1 only
 
+**Status:** ✅ Done — see `plans/3.2.md`.
+
 Hand-rolled OpenAI loop with a hard cap of 5 tool calls. Target: the renamed-`id` case.
 
 **Acceptance criteria:**
