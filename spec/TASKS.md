@@ -153,6 +153,8 @@ Wire the tools to the model and heal a real failure.
 
 ### Task 3.1 — Failure classifier
 
+**Status:** ✅ Done — see `plans/3.1.md`.
+
 Rule-based mapping from Playwright error output to `selector-drift` vs `other`.
 
 **Acceptance criteria:**

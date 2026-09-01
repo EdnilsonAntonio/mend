@@ -1,0 +1,444 @@
+{
+  "config": {
+    "argv": [
+      "/Users/ednilsonantonio/.nvm/versions/node/v24.15.0/bin/node",
+      "/Users/ednilsonantonio/Desktop/mend/node_modules/.bin/playwright",
+      "test"
+    ],
+    "configFile": "/Users/ednilsonantonio/Desktop/mend/playwright.config.ts",
+    "rootDir": "/Users/ednilsonantonio/Desktop/mend/tests",
+    "failOnFlakyTests": false,
+    "forbidOnly": true,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/Users/ednilsonantonio/Desktop/mend/test-results/artifacts",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/Users/ednilsonantonio/Desktop/mend/tests",
+        "testIgnore": [],
+        "testMatch": [
+          "**/*.@(spec|test).?(c|m)[jt]s?(x)"
+        ],
+        "timeout": 15000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "test-results/results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.62.1",
+    "workers": 1,
+    "webServer": {
+      "command": "npm run start:app",
+      "url": "http://localhost:3100",
+      "reuseExistingServer": true,
+      "timeout": 30000,
+      "stdout": "ignore",
+      "stderr": "pipe"
+    }
+  },
+  "suites": [
+    {
+      "title": "cart-add.spec.ts",
+      "file": "cart-add.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "adding the featured product increments the counter in the nav",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 15000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 5201,
+                  "error": {
+                    "message": "TimeoutError: locator.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.add-to-cart')\u001b[22m\n",
+                    "stack": "TimeoutError: locator.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.add-to-cart')\u001b[22m\n\n    at /Users/ednilsonantonio/Desktop/mend/tests/cart-add.spec.ts:10:19",
+                    "location": {
+                      "file": "/Users/ednilsonantonio/Desktop/mend/tests/cart-add.spec.ts",
+                      "column": 19,
+                      "line": 10
+                    },
+                    "snippet": "   8 |   await expect(page.locator('#cart-count')).toHaveText('0');\n   9 |\n> 10 |   await addButton.click();\n     |                   ^\n  11 |\n  12 |   await expect(page.locator('#cart-count')).toHaveText('1');\n  13 |   await expect(page.locator('#cart-status')).toHaveText('Added Wireless Headphones to cart.');"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/ednilsonantonio/Desktop/mend/tests/cart-add.spec.ts",
+                        "column": 19,
+                        "line": 10
+                      },
+                      "message": "TimeoutError: locator.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('.add-to-cart')\u001b[22m\n\n\n   8 |   await expect(page.locator('#cart-count')).toHaveText('0');\n   9 |\n> 10 |   await addButton.click();\n     |                   ^\n  11 |\n  12 |   await expect(page.locator('#cart-count')).toHaveText('1');\n  13 |   await expect(page.locator('#cart-status')).toHaveText('Added Wireless Headphones to cart.');\n    at /Users/ednilsonantonio/Desktop/mend/tests/cart-add.spec.ts:10:19"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-01T15:12:17.740Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/ednilsonantonio/Desktop/mend/test-results/artifacts/cart-add-adding-the-featur-725b9-ents-the-counter-in-the-nav-chromium/error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/ednilsonantonio/Desktop/mend/tests/cart-add.spec.ts",
+                    "column": 19,
+                    "line": 10
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "de8fbe91ee3ef4f7bbdf-fed367c7077f86d12ea4",
+          "file": "cart-add.spec.ts",
+          "line": 3,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "login-submit.spec.ts",
+      "file": "login-submit.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "submitting valid credentials updates the login status",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 15000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 5323,
+                  "error": {
+                    "message": "TimeoutError: locator.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#login-btn')\u001b[22m\n",
+                    "stack": "TimeoutError: locator.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#login-btn')\u001b[22m\n\n    at /Users/ednilsonantonio/Desktop/mend/tests/login-submit.spec.ts:10:22",
+                    "location": {
+                      "file": "/Users/ednilsonantonio/Desktop/mend/tests/login-submit.spec.ts",
+                      "column": 22,
+                      "line": 10
+                    },
+                    "snippet": "   8 |   await page.locator('#email').fill('user@example.com');\n   9 |   await page.locator('#password').fill('hunter2');\n> 10 |   await submitButton.click();\n     |                      ^\n  11 |\n  12 |   await expect(page.locator('#login-status')).toHaveText('Signed in as user@example.com');\n  13 | });"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/ednilsonantonio/Desktop/mend/tests/login-submit.spec.ts",
+                        "column": 22,
+                        "line": 10
+                      },
+                      "message": "TimeoutError: locator.click: Timeout 5000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('#login-btn')\u001b[22m\n\n\n   8 |   await page.locator('#email').fill('user@example.com');\n   9 |   await page.locator('#password').fill('hunter2');\n> 10 |   await submitButton.click();\n     |                      ^\n  11 |\n  12 |   await expect(page.locator('#login-status')).toHaveText('Signed in as user@example.com');\n  13 | });\n    at /Users/ednilsonantonio/Desktop/mend/tests/login-submit.spec.ts:10:22"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-01T15:12:23.671Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/ednilsonantonio/Desktop/mend/test-results/artifacts/login-submit-submitting-va-4ea60-ls-updates-the-login-status-chromium/error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/ednilsonantonio/Desktop/mend/tests/login-submit.spec.ts",
+                    "column": 22,
+                    "line": 10
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "2bda55884245a383f4f0-b9af115d92946b85eee3",
+          "file": "login-submit.spec.ts",
+          "line": 3,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "login-validation.spec.ts",
+      "file": "login-validation.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "submitting the form with empty fields shows a validation message",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 15000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 5157,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button:has-text(\"Sign In\")')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Sign In\")')\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button:has-text(\"Sign In\")')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Sign In\")')\u001b[22m\n\n    at /Users/ednilsonantonio/Desktop/mend/tests/login-validation.spec.ts:8:30",
+                    "location": {
+                      "file": "/Users/ednilsonantonio/Desktop/mend/tests/login-validation.spec.ts",
+                      "column": 30,
+                      "line": 8
+                    },
+                    "snippet": "   6 |   const submitButton = page.locator('button:has-text(\"Sign In\")');\n   7 |\n>  8 |   await expect(submitButton).toBeVisible();\n     |                              ^\n   9 |   await submitButton.click();\n  10 |\n  11 |   await expect(page.locator('#login-status')).toHaveText('Please enter both email and password.');"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/ednilsonantonio/Desktop/mend/tests/login-validation.spec.ts",
+                        "column": 30,
+                        "line": 8
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('button:has-text(\"Sign In\")')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('button:has-text(\"Sign In\")')\u001b[22m\n\n\n   6 |   const submitButton = page.locator('button:has-text(\"Sign In\")');\n   7 |\n>  8 |   await expect(submitButton).toBeVisible();\n     |                              ^\n   9 |   await submitButton.click();\n  10 |\n  11 |   await expect(page.locator('#login-status')).toHaveText('Please enter both email and password.');\n    at /Users/ednilsonantonio/Desktop/mend/tests/login-validation.spec.ts:8:30"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-01T15:12:29.758Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/ednilsonantonio/Desktop/mend/test-results/artifacts/login-validation-submittin-92b44--shows-a-validation-message-chromium/error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/ednilsonantonio/Desktop/mend/tests/login-validation.spec.ts",
+                    "column": 30,
+                    "line": 8
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "dc05bca604861812ce2c-2b5d4d9514e1114b6180",
+          "file": "login-validation.spec.ts",
+          "line": 3,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "product-price.spec.ts",
+      "file": "product-price.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "the featured product shows its price directly inside the card",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 15000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 3,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 5153,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#product-card > .product-card__price')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#product-card > .product-card__price')\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#product-card > .product-card__price')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#product-card > .product-card__price')\u001b[22m\n\n    at /Users/ednilsonantonio/Desktop/mend/tests/product-price.spec.ts:8:23",
+                    "location": {
+                      "file": "/Users/ednilsonantonio/Desktop/mend/tests/product-price.spec.ts",
+                      "column": 23,
+                      "line": 8
+                    },
+                    "snippet": "   6 |   const price = page.locator('#product-card > .product-card__price');\n   7 |\n>  8 |   await expect(price).toBeVisible();\n     |                       ^\n   9 |   await expect(price).toHaveText('$149.00');\n  10 | });\n  11 |"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/ednilsonantonio/Desktop/mend/tests/product-price.spec.ts",
+                        "column": 23,
+                        "line": 8
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#product-card > .product-card__price')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#product-card > .product-card__price')\u001b[22m\n\n\n   6 |   const price = page.locator('#product-card > .product-card__price');\n   7 |\n>  8 |   await expect(price).toBeVisible();\n     |                       ^\n   9 |   await expect(price).toHaveText('$149.00');\n  10 | });\n  11 |\n    at /Users/ednilsonantonio/Desktop/mend/tests/product-price.spec.ts:8:23"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-01T15:12:35.658Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/ednilsonantonio/Desktop/mend/test-results/artifacts/product-price-the-featured-7c3a9-ce-directly-inside-the-card-chromium/error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/ednilsonantonio/Desktop/mend/tests/product-price.spec.ts",
+                    "column": 23,
+                    "line": 8
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "94978082780cfc9334dd-bcdadd6f2c818e06c49a",
+          "file": "product-price.spec.ts",
+          "line": 3,
+          "column": 1
+        }
+      ]
+    },
+    {
+      "title": "remember-preference.spec.ts",
+      "file": "remember-preference.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "the remember preference starts unchecked and can be toggled on",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 15000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 4,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 5151,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#remember-me')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#remember-me')\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#remember-me')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#remember-me')\u001b[22m\n\n    at /Users/ednilsonantonio/Desktop/mend/tests/remember-preference.spec.ts:8:34",
+                    "location": {
+                      "file": "/Users/ednilsonantonio/Desktop/mend/tests/remember-preference.spec.ts",
+                      "column": 34,
+                      "line": 8
+                    },
+                    "snippet": "   6 |   const rememberCheckbox = page.locator('#remember-me');\n   7 |\n>  8 |   await expect(rememberCheckbox).toBeVisible();\n     |                                  ^\n   9 |   await expect(rememberCheckbox).not.toBeChecked();\n  10 |\n  11 |   await rememberCheckbox.check();"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/Users/ednilsonantonio/Desktop/mend/tests/remember-preference.spec.ts",
+                        "column": 34,
+                        "line": 8
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m(\u001b[22m\u001b[2m)\u001b[22m failed\n\nLocator: locator('#remember-me')\nExpected: visible\nTimeout: 5000ms\nError: element(s) not found\n\nCall log:\n\u001b[2m  - Expect \"toBeVisible\" with timeout 5000ms\u001b[22m\n\u001b[2m  - waiting for locator('#remember-me')\u001b[22m\n\n\n   6 |   const rememberCheckbox = page.locator('#remember-me');\n   7 |\n>  8 |   await expect(rememberCheckbox).toBeVisible();\n     |                                  ^\n   9 |   await expect(rememberCheckbox).not.toBeChecked();\n  10 |\n  11 |   await rememberCheckbox.check();\n    at /Users/ednilsonantonio/Desktop/mend/tests/remember-preference.spec.ts:8:34"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-09-01T15:12:41.593Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/Users/ednilsonantonio/Desktop/mend/test-results/artifacts/remember-preference-the-re-1d659-ecked-and-can-be-toggled-on-chromium/error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/Users/ednilsonantonio/Desktop/mend/tests/remember-preference.spec.ts",
+                    "column": 34,
+                    "line": 8
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "c6f81c8be10c50f787aa-3ef477b4ddafec30d732",
+          "file": "remember-preference.spec.ts",
+          "line": 3,
+          "column": 1
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-09-01T15:12:16.488Z",
+    "duration": 30529.62,
+    "expected": 0,
+    "skipped": 0,
+    "unexpected": 5,
+    "flaky": 0
+  }
+}

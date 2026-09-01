@@ -3,7 +3,7 @@ import { defineConfig, devices } from '@playwright/test';
 const APP_BASE_URL = 'http://localhost:3100';
 
 export default defineConfig({
-  testDir: './agent/tools/__tests__',
+  testDir: './agent',
   outputDir: './test-results/tools-artifacts',
   fullyParallel: false,
   workers: 1,
