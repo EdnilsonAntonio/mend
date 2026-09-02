@@ -20,7 +20,8 @@
     "tool:query-selector": "tsx agent/tools/cli/query-selector.cli.ts",
     "tool:run-single-test": "tsx agent/tools/cli/run-single-test.cli.ts",
     "classify:failures": "tsx agent/classifier/cli/classify-failures.cli.ts",
-    "heal:one": "tsx agent/loop/cli/heal.cli.ts"
+    "heal:one": "tsx agent/loop/cli/heal.cli.ts",
+    "heal:all": "tsx agent/loop/cli/heal-all.cli.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

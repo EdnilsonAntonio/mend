@@ -2,6 +2,7 @@ import { classifyResultsFile } from '../../classifier/failure-classifier.js';
 import { createOpenAIClient } from '../openai-client.js';
 import { createPlaywrightToolbox, DEFAULT_APP_URL } from '../playwright-toolbox.js';
 import { healFailure, MAX_TOOL_CALLS } from '../heal-loop.js';
+import { readSpecSourceFromDisk } from '../heal-queue.js';
 
 const DEFAULT_RESULTS_PATH = 'test-results/results.json';
 
@@ -93,9 +94,16 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  const specSource = await readSpecSourceFromDisk(failure.specFile);
+
   let result;
   try {
-    result = await healFailure(failure, { model: client, toolbox, appUrl: args.url });
+    result = await healFailure(failure, {
+      model: client,
+      toolbox,
+      appUrl: args.url,
+      specSource,
+    });
   } finally {
     await toolbox.close();
   }

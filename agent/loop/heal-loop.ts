@@ -15,6 +15,7 @@ import type {
   VerifiedFix,
 } from './types.js';
 import { HEAL_TOOL_SCHEMAS, isHealToolName, parseToolArguments, summariseToolResult } from './tool-schemas.js';
+import { buildInitialMessages, clampSpecSource, MAX_SPEC_SOURCE_CHARS } from './prompt.js';
 
 export const MAX_TOOL_CALLS = 5;
 export const MAX_MODEL_TURNS = 6;
@@ -54,6 +55,7 @@ export async function healFailure(
       verification: null,
       transcript: {
         bootstrapSnapshot: null,
+        bootstrapSpecSource: null,
         messages: [],
         toolCalls: [],
         modelRequests: [],
@@ -68,6 +70,11 @@ export async function healFailure(
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
   const cap = Math.min(deps.maxToolCalls ?? MAX_TOOL_CALLS, MAX_TOOL_CALLS);
+
+  const bootstrapSpecSource =
+    deps.specSource === undefined || deps.specSource === null
+      ? null
+      : clampSpecSource(deps.specSource);
 
   const messages: ChatMessage[] = [];
   const toolCalls: ToolCallRecord[] = [];
@@ -112,6 +119,7 @@ export async function healFailure(
       verification: null,
       transcript: {
         bootstrapSnapshot: null,
+        bootstrapSpecSource,
         messages: [],
         toolCalls: [],
         modelRequests: [],
@@ -127,8 +135,7 @@ export async function healFailure(
   }
 
   // Build initial messages using the buildInitialMessages function
-  const { buildInitialMessages } = await import('./prompt.js');
-  messages.push(...buildInitialMessages(failure, deps.appUrl, domSnapshot));
+  messages.push(...buildInitialMessages(failure, deps.appUrl, domSnapshot, bootstrapSpecSource));
 
   // Main loop
   turnLoop: for (let turn = 1; turn <= MAX_MODEL_TURNS; turn++) {
@@ -242,6 +249,7 @@ export async function healFailure(
     verification,
     transcript: {
       bootstrapSnapshot,
+      bootstrapSpecSource,
       messages,
       toolCalls,
       modelRequests,
@@ -288,6 +296,14 @@ export function assertHealInvariant(result: HealResult): void {
   // Check 6: transcript.toolCalls.length === toolCallCount
   if (result.transcript.toolCalls.length !== result.toolCallCount) {
     throw new Error('heal invariant violated: transcript.toolCalls.length !== toolCallCount');
+  }
+
+  // Check 7: the spec source shown to the model is bounded
+  if (
+    result.transcript.bootstrapSpecSource !== null &&
+    result.transcript.bootstrapSpecSource.length > MAX_SPEC_SOURCE_CHARS + 20
+  ) {
+    throw new Error('heal invariant violated: bootstrapSpecSource exceeds MAX_SPEC_SOURCE_CHARS');
   }
 }
 

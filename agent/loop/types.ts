@@ -154,6 +154,8 @@ export interface BootstrapSnapshot {
 export interface HealTranscript {
   /** The one snapshot captured before the first model request. null on bootstrap failure. */
   readonly bootstrapSnapshot: BootstrapSnapshot | null;
+  /** The clamped spec source shown to the model. null when none was supplied. */
+  readonly bootstrapSpecSource: string | null;
   /** The full conversation, in order, exactly as sent to the model. */
   readonly messages: readonly ChatMessage[];
   /** Every executed tool call, in order. Length always equals HealResult.toolCallCount. */
@@ -196,6 +198,11 @@ export interface HealDeps {
   readonly appUrl: string;
   /** Clamped to at most MAX_TOOL_CALLS. Can lower the cap, never raise it. */
   readonly maxToolCalls?: number;
+  /**
+   * The spec file's source, read by the caller. Read-only context for the model.
+   * null when unavailable. `healFailure` never reads the filesystem itself.
+   */
+  readonly specSource?: string | null;
 }
 
 export interface HealResult {

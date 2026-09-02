@@ -143,6 +143,7 @@ export interface BootstrapSnapshot {
 
 export interface HealTranscript {
   readonly bootstrapSnapshot: BootstrapSnapshot | null;
+  readonly bootstrapSpecSource: string | null;
   readonly messages: readonly ChatMessage[];
   readonly toolCalls: readonly ToolCallRecord[];
   readonly modelRequests: readonly ModelRequestRecord[];
@@ -179,6 +180,7 @@ export interface HealDeps {
   readonly toolbox: HealToolbox;
   readonly appUrl: string;
   readonly maxToolCalls?: number;
+  readonly specSource?: string | null;
 }
 
 export interface HealResult {
@@ -214,11 +216,146 @@ export function parseToolArguments(tool: HealToolName, argumentsJson: string): T
 export function summariseToolResult(result: ToolCallResult): string;
 
 export const SYSTEM_PROMPT: string;
+export const MAX_SPEC_SOURCE_CHARS: number;
+export function clampSpecSource(text: string): string;
 export function buildInitialMessages(
   failure: ClassifiedFailure,
   appUrl: string,
   snapshot: DomSnapshot,
+  specSource: string | null,
 ): readonly ChatMessage[];
+
+export interface ClosableToolbox extends HealToolbox {
+  close(): Promise<void>;
+}
+
+export interface HealQueueDeps {
+  readonly model: ModelClient;
+  readonly appUrl: string;
+  readonly createToolbox: (failure: ClassifiedFailure) => Promise<ClosableToolbox>;
+  readonly readSpecSource: (specFile: string) => Promise<string | null>;
+  readonly maxToolCalls?: number;
+}
+
+export interface HealQueueResult {
+  readonly startedAt: string;
+  readonly durationMs: number;
+  readonly results: readonly HealResult[];
+}
+
+export async function readSpecSourceFromDisk(specFile: string): Promise<string | null>;
+export async function healQueueSequentially(
+  failures: readonly ClassifiedFailure[],
+  deps: HealQueueDeps,
+): Promise<HealQueueResult>;
+
+export type RequiredOutcome = 'healed' | 'no-fix' | 'either';
+
+export interface ScenarioExpectation {
+  readonly scenario: number;
+  readonly specFile: string;
+  readonly originalSelector: string;
+  readonly requiredOutcome: RequiredOutcome;
+  readonly oracleSelector: string | null;
+  readonly note: string;
+}
+
+export const SCENARIO_EXPECTATIONS: readonly ScenarioExpectation[];
+
+export type ElementIdentityVerdict =
+  | 'same'
+  | 'different'
+  | 'proposed-not-unique'
+  | 'proposed-no-match'
+  | 'oracle-unavailable'
+  | 'check-error';
+
+export async function checkElementIdentity(
+  page: Page,
+  proposedSelector: string,
+  oracleSelector: string | null,
+): Promise<ElementIdentityVerdict>;
+
+export type ScenarioFailureReason =
+  | 'unknown-scenario'
+  | 'heal-error'
+  | 'expected-healed-but-not'
+  | 'expected-no-fix-but-healed'
+  | 'wrong-element-fix'
+  | 'fix-not-unique'
+  | 'identity-check-failed';
+
+export interface ScenarioVerdict {
+  readonly scenario: number;
+  readonly specFile: string;
+  readonly requiredOutcome: RequiredOutcome;
+  readonly outcome: HealOutcome;
+  readonly stopReason: HealStopReason;
+  readonly proposedSelector: string | null;
+  readonly toolCallCount: number;
+  readonly capReached: boolean;
+  readonly durationMs: number;
+  readonly identity: ElementIdentityVerdict | null;
+  readonly pass: boolean;
+  readonly failureReasons: readonly ScenarioFailureReason[];
+}
+
+export interface RunVerdict {
+  readonly run: number;
+  readonly startedAt: string;
+  readonly durationMs: number;
+  readonly scenarios: readonly ScenarioVerdict[];
+  readonly missingSpecFiles: readonly string[];
+  readonly pass: boolean;
+}
+
+export interface ScenarioSummary {
+  readonly scenario: number;
+  readonly specFile: string;
+  readonly requiredOutcome: RequiredOutcome;
+  readonly attempts: number;
+  readonly healed: number;
+  readonly noFix: number;
+  readonly errors: number;
+  readonly wrongElement: number;
+  readonly passes: number;
+  readonly pass: boolean;
+  readonly averageToolCalls: number;
+}
+
+export interface MatrixVerdict {
+  readonly runs: number;
+  readonly startedAt: string;
+  readonly durationMs: number;
+  readonly model: string;
+  readonly runVerdicts: readonly RunVerdict[];
+  readonly perScenario: readonly ScenarioSummary[];
+  readonly pass: boolean;
+}
+
+export function evaluateScenario(
+  result: HealResult,
+  identity: ElementIdentityVerdict | null,
+  expectations?: readonly ScenarioExpectation[],
+): ScenarioVerdict;
+
+export function evaluateRun(
+  run: number,
+  startedAt: string,
+  durationMs: number,
+  scenarios: readonly ScenarioVerdict[],
+  expectedSpecFiles: readonly string[],
+): RunVerdict;
+
+export function summariseMatrix(
+  startedAt: string,
+  durationMs: number,
+  model: string,
+  runVerdicts: readonly RunVerdict[],
+  expectations?: readonly ScenarioExpectation[],
+): MatrixVerdict;
+
+export const MAX_MATRIX_RUNS: number;
 
 export const OPENAI_CHAT_COMPLETIONS_URL: string;
 export const DEFAULT_HEAL_MODEL: string;
@@ -252,10 +389,17 @@ The model supplies only a selector string (`selector` for `query_selector`, `can
 
 One capture, taken before the first model request, embedded in the initial user message, and not counted against the cap. This bootstrap capture is exactly one fixed cost, model-free, and deterministic. It is recorded in `HealTranscript.bootstrapSnapshot` so the dashboard can still replay "the DOM the agent saw". The recommendation in the plan rationale (Q4) justifies this: it matches DESIGN.md's pipeline diagram literally and is the only reading consistent with the Task 3.4 confidence table, which requires "verified pass, exactly 1 DOM match, ≤ 2 tool calls" — achievable only as `query_selector` (gives match count) + `run_single_test` (gives verified pass) = 2 calls.
 
+### Spec file source
+
+The caller reads the spec file and passes it as `HealDeps.specSource`. The loop embeds it, clamped to `MAX_SPEC_SOURCE_CHARS` (4,000 characters), in the initial user message as explicitly read-only context. It is not a tool call and does not consume the cap. `healFailure` itself performs no file I/O — the CLI or queue runner reads the file. The spec source is recorded in `HealTranscript.bootstrapSpecSource` for replay and audit.
+
+The spec source gives the model no new power to edit the test or change assertions. The model still supplies only a selector string, and assertion integrity is enforced by `run_single_test` regardless of what the model has read. A selector that satisfies the test's assertions *is* the right element. The spec source sharpens scenarios where the test's actions and assertions uniquely identify the intended element (e.g., "check this checkbox" uniquely names a kind of element), and it enables the model to conclude "no fix exists" when no element of the required kind remains on the page.
+
 ## Transcript shape
 
 `HealTranscript` carries:
 - `bootstrapSnapshot` — the pre-request DOM snapshot, or null on bootstrap failure
+- `bootstrapSpecSource` — the clamped spec source shown to the model, or null when none was supplied
 - `messages` — the full conversation in order, exactly as sent to the model
 - `toolCalls` — every executed tool call in order; length always equals `HealResult.toolCallCount`
 - `modelRequests` — one entry per model round trip, with finish reason, usage, and content preview
@@ -313,25 +457,94 @@ Exit codes:
 
 Note: exit code `0` vs `3` follows the `run_single_test` gate convention, not the classifier convention.
 
+### The five-scenario matrix
+
+Run all five seeded breakage scenarios sequentially, three times, and verify every fix by identity check:
+
+```sh
+npm run break:on
+npm run test:e2e ; echo "exit=$?"
+npm run --silent heal:all -- --runs=3 --json-out=test-results/heal-matrix.json ; echo "exit=$?"
+```
+
+The matrix CLI accepts these flags:
+- `--runs=<n>` (optional, default `1`, max `5`) — the number of consecutive runs of the full five-scenario queue
+- `--results=<path>` (optional, default `test-results/results.json`) — the results file from `npm run test:e2e`
+- `--url=<url>` (optional, default `http://localhost:3100`) — the application base URL
+- `--spec=<path>` (optional) — restrict to one spec file and filter the heal queue accordingly
+- `--json-out=<path>` (optional) — write the verdict summary as JSON to a file
+- `--json` (optional) — print JSON to stdout instead of the table
+
+**Output format (without `--json`):**
+
+Per-scenario lines (one per scenario per run, printed as runs progress):
+```
+run=1/3 scenario=1 spec=tests/login-submit.spec.ts required=healed outcome=healed stopReason=verified-fix proposed=#signin-button toolCalls=2/5 identity=same verdict=PASS reasons=-
+```
+
+Per-scenario summary (after all runs):
+```
+scenario=1 spec=tests/login-submit.spec.ts attempts=3 healed=3 noFix=0 errors=0 wrongElement=0 passes=3 avgToolCalls=2 verdict=PASS
+```
+
+Final verdict:
+```
+matrix runs=3 scenarios=5 model=gpt-4o-mini durationMs=45000 pass=true
+```
+
+Exit codes:
+- `0` — every scenario verdict in every run passed
+- `3` — the matrix ran to completion but at least one verdict failed
+- `2` — CLI usage error
+- `1` — could not get far enough to run (results file unreadable, empty queue, missing API key)
+
 ## Model and cost
 
 The loop uses `gpt-4o-mini` by default (`DEFAULT_HEAL_MODEL = 'gpt-4o-mini'`), overridable by the `MEND_OPENAI_MODEL` environment variable. Requests are sent with `temperature: 0` (for reproducibility) and `parallel_tool_calls: false`. Per-turn token usage is recorded in `HealResult.transcript.modelRequests[].usage` (fields: `promptTokens`, `completionTokens`, `totalTokens`).
+
+## The five-scenario matrix
+
+The matrix harness encodes five seeded breakage scenarios:
+
+| Scenario | Spec file | Original selector | Required outcome | Oracle selector | What broke |
+|----------|-----------|-------------------|------------------|-----------------|-----------|
+| 1 | `tests/login-submit.spec.ts` | `#login-btn` | healed | `#signin-button` | renamed id |
+| 2 | `tests/cart-add.spec.ts` | `.add-to-cart` | healed | `#product-card button` | renamed class |
+| 3 | `tests/product-price.spec.ts` | `#product-card > .product-card__price` | either | `.product-card__price` | DOM restructure |
+| 4 | `tests/login-validation.spec.ts` | `button:has-text("Sign In")` | healed | `#signin-button` | changed text content |
+| 5 | `tests/remember-preference.spec.ts` | `#remember-me` | no-fix | null | element genuinely removed |
+
+### Element-identity oracle
+
+After a heal, the matrix launches a browser, navigates to the app, and checks that the proposed selector points to the same DOM element the test was written to target. The oracle selector (when non-null) is a selector that, on the **broken** page, resolves to exactly the intended element. For example, `#signin-button` exists only on the broken page; scenario 1 heals to that selector, and the oracle confirms they refer to the same DOM element.
+
+The identity check is a verification harness, not a gate in the loop. It never feeds back into `HealResult` and never causes a retry. It runs after every heal and can only turn a PASS into a FAIL in the report. When a fix passes `run_single_test` but the oracle reports `identity === 'different'`, the test was made to pass by selecting the wrong element — a correctness failure caught by this oracle and reported.
+
+Scenario 5's `oracleSelector` is null by construction: the element no longer exists, and a proposed selector is a failure.
+
+### Guarantees
+
+- Every scenario's outcome is checked against its `requiredOutcome`. Scenarios 1, 2, 4 require `healed`; scenario 3 accepts `healed` or `no-fix`; scenario 5 requires `no-fix`. A heal that produced `proposedSelector: null` for scenario 5 is a correctness failure, never a flake to re-roll.
+- Every non-null `proposedSelector` has its identity checked. A `identity === 'same'` is the only acceptable outcome; `'different'` is a wrong-element fix and fails the scenario.
+- The cap is 5 tool calls for all scenarios, with no per-scenario exceptions or tuning.
 
 ## Known limitations (v1)
 
 1. `DEFAULT_APP_URL` duplicates the base URL in the three Playwright configs; this is accepted as a v1 limitation rather than importing a config.
 2. Only one failure is healed per invocation; no batching and no parallelism.
-3. The loop is exercised against scenario 1 (renamed `id`) only — scenarios 2–5 (text drift, DOM restructure, missing element, genuine removal) are Task 3.3.
-4. No retry on a model API error, by design; the cap applies equally to every path.
-5. The bootstrap snapshot is taken from a freshly navigated page, inheriting the limitation of `get_dom_snapshot` (no login, no state setup).
-6. The app server must already be running for the bootstrap snapshot, whereas `run_single_test` starts its own via `reuseExistingServer`.
+3. No retry on a model API error, by design; the cap applies equally to every path.
+4. The bootstrap snapshot is taken from a freshly navigated page, inheriting the limitation of `get_dom_snapshot` (no login, no state setup).
+5. The app server must already be running for the bootstrap snapshot, whereas `run_single_test` starts its own via `reuseExistingServer`.
+6. The matrix requires a real API key and real spend, so it is not part of `npm run test:tools`.
+7. The oracle selectors are only valid with breakage **on**. With breakage off, the selectors will not match, and the identity check will report `oracle-unavailable` for every scenario.
+8. The identity check runs after the fact and never gates a heal. Runs are sequential, so a three-run matrix takes several minutes.
 
 ## Not in this component
 
 - **Confidence scoring** (Task 3.4) — no `high`/`low`/`none` value is computed.
-- **Scenarios 2–5** (Task 3.3) — no text-drift, DOM-restructure, or missing-element logic.
 - **Persistence** (Task 4.2) — no PostgreSQL, no `heal_attempts` row, no writing the transcript to disk.
 - **PR creation** (Task 5.1) — no Octokit, no branches, no commits.
 - **Dashboard, metrics** (Phases 6–7) — no aggregation of usage, no cost reporting surfaces.
 - **Re-classification** — the loop consumes a `ClassifiedFailure`; it never inspects Playwright error text to decide what kind of failure it is.
 - **Prompt-tuning harness, eval framework** — one system prompt, one message shape, no experiment infrastructure.
+- **Editing `tests/`, `app-under-test/`, or `breakage/`** — the five scenarios are a fixed contract; healing them as-is is the target.

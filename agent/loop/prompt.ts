@@ -3,6 +3,8 @@ import type { DomSnapshot } from '../tools/get-dom-snapshot.js';
 import type { ChatMessage } from './types.js';
 import { MAX_TOOL_RESULT_CHARS } from './tool-schemas.js';
 
+export const MAX_SPEC_SOURCE_CHARS = 4_000;
+
 export const SYSTEM_PROMPT = `You repair a single broken Playwright end-to-end test whose selector no longer matches
 anything on the page. You are not fixing the application and you are not changing what the
 test checks.
@@ -20,24 +22,47 @@ Rules you cannot change:
 6. If the element the test needs no longer exists on the page, say so plainly and stop calling
    tools. "No fix found" is a correct and expected answer. Never point the selector at a
    different element just to make the test go green.
+7. The spec source below is read-only context. You cannot edit it. The only change that will
+   ever be applied to it is replacing the one original selector with your candidate. If the
+   test's actions or assertions require a kind of element that no longer exists on the page, no
+   selector can fix it: answer "no fix found".
 
 Work efficiently: find the drifted element in the DOM snapshot, confirm it with query_selector
 if you are unsure, then verify it with run_single_test.`;
+
+export function clampSpecSource(text: string): string {
+  if (text.length <= MAX_SPEC_SOURCE_CHARS) {
+    return text;
+  }
+  return text.slice(0, MAX_SPEC_SOURCE_CHARS) + '\n…[truncated]…';
+}
 
 export function buildInitialMessages(
   failure: ClassifiedFailure,
   appUrl: string,
   snapshot: DomSnapshot,
+  specSource: string | null,
 ): readonly ChatMessage[] {
   const clampedHtml = clampHead(snapshot.html, MAX_TOOL_RESULT_CHARS);
-  const userMessage = `Spec file: ${failure.specFile}
+
+  let userMessage = `Spec file: ${failure.specFile}
 Test name: ${failure.testName}
 Original selector: ${failure.selector ?? ''}
 Page URL: ${appUrl}
 Classifier rule: ${failure.rule}
 
 Playwright error:
-${failure.errorText}
+${failure.errorText}`;
+
+  if (specSource !== null) {
+    const clampedSource = clampSpecSource(specSource);
+    userMessage += `
+
+Current source of the spec file (read-only; you cannot edit it):
+${clampedSource}`;
+  }
+
+  userMessage += `
 
 Pruned DOM snapshot of the page (captured now, before you start):
 ${clampedHtml}`;

@@ -179,6 +179,8 @@ Hand-rolled OpenAI loop with a hard cap of 5 tool calls. Target: the renamed-`id
 
 ### Task 3.3 — Extend to all five scenarios
 
+**Status:** ✅ Done — see `plans/3.3.md`.
+
 **Acceptance criteria:**
 * Scenarios 1, 2, 4 heal reliably across 3 consecutive runs.
 * Scenario 3 heals or routes to review — never produces a wrong-element fix.

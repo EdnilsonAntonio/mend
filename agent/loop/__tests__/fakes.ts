@@ -154,3 +154,21 @@ export function fakeToolbox(options: {
     calls: () => callsLog,
   };
 }
+
+export function closableFakeToolbox(
+  options: Parameters<typeof fakeToolbox>[0],
+): ReturnType<typeof fakeToolbox> & {
+  close(): Promise<void>;
+  readonly closeCount: () => number;
+} {
+  const toolbox = fakeToolbox(options);
+  let closeCount_ = 0;
+
+  return {
+    ...toolbox,
+    close: async () => {
+      closeCount_++;
+    },
+    closeCount: () => closeCount_,
+  };
+}
