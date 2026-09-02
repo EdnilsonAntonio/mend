@@ -387,7 +387,7 @@ The model supplies only a selector string (`selector` for `query_selector`, `can
 
 ## Bootstrap DOM snapshot
 
-One capture, taken before the first model request, embedded in the initial user message, and not counted against the cap. This bootstrap capture is exactly one fixed cost, model-free, and deterministic. It is recorded in `HealTranscript.bootstrapSnapshot` so the dashboard can still replay "the DOM the agent saw". The recommendation in the plan rationale (Q4) justifies this: it matches DESIGN.md's pipeline diagram literally and is the only reading consistent with the Task 3.4 confidence table, which requires "verified pass, exactly 1 DOM match, ≤ 2 tool calls" — achievable only as `query_selector` (gives match count) + `run_single_test` (gives verified pass) = 2 calls.
+One capture, taken before the first model request, embedded in the initial user message, and not counted against the cap. This bootstrap capture is exactly one fixed cost, model-free, and deterministic. It is recorded in `HealTranscript.bootstrapSnapshot` so the dashboard can still replay "the DOM the agent saw". The recommendation in the plan rationale (Q4) justifies this: it matches DESIGN.md's pipeline diagram literally and keeps the entire tool-call budget available for investigation. Note that the confidence gate's "exactly 1 DOM match" signal does **not** come from this snapshot, nor from any model-initiated `query_selector` — it is measured deterministically after a verified fix. See [The confidence gate](#the-confidence-gate).
 
 ### Spec file source
 
@@ -441,10 +441,17 @@ npm run --silent classify:failures       # Ensure the heal queue is non-empty
 npm run --silent heal:one -- --spec=tests/login-submit.spec.ts ; echo "exit=$?"
 ```
 
-To see the full transcript as JSON:
+To see the full assessment as JSON:
 
 ```sh
 npm run --silent heal:one -- --spec=tests/login-submit.spec.ts --json | jq .
+```
+
+The `--json` output is a `HealAssessment` with the former `HealResult` payload nested under `.result`, and includes `confidence`, `status`, and `prEligible` at the top level.
+
+In the non-JSON output, each per-spec line is now followed by:
+```
+confidence=<high|low|none> status=<healed|needs_review|failed> prEligible=<true|false> matchCount=<n|-> measured=<true|false> reason=<failureReason|->
 ```
 
 **Important:** `npm run --silent` suppresses npm's stdout banner. The `--silent` flag is required when piping the output or using `--json`.
@@ -479,7 +486,7 @@ The matrix CLI accepts these flags:
 
 Per-scenario lines (one per scenario per run, printed as runs progress):
 ```
-run=1/3 scenario=1 spec=tests/login-submit.spec.ts required=healed outcome=healed stopReason=verified-fix proposed=#signin-button toolCalls=2/5 identity=same verdict=PASS reasons=-
+run=1/3 scenario=1 spec=tests/login-submit.spec.ts required=healed outcome=healed stopReason=verified-fix proposed=#signin-button toolCalls=2/5 identity=same verdict=PASS reasons=- confidence=high status=healed prEligible=true matchCount=1
 ```
 
 Per-scenario summary (after all runs):
@@ -487,10 +494,17 @@ Per-scenario summary (after all runs):
 scenario=1 spec=tests/login-submit.spec.ts attempts=3 healed=3 noFix=0 errors=0 wrongElement=0 passes=3 avgToolCalls=2 verdict=PASS
 ```
 
+Confidence totals (before final verdict):
+```
+confidence attempts=5 high=3 low=2 none=0 prEligible=3
+```
+
 Final verdict:
 ```
-matrix runs=3 scenarios=5 model=gpt-4o-mini durationMs=45000 pass=true
+matrix runs=1 scenarios=5 model=gpt-4o-mini durationMs=45000 pass=true
 ```
+
+The JSON output is a `MatrixVerdict` with an additional `confidenceTotals` key containing `{ attempts, high, low, none, prEligible }`.
 
 Exit codes:
 - `0` — every scenario verdict in every run passed
@@ -528,6 +542,36 @@ Scenario 5's `oracleSelector` is null by construction: the element no longer exi
 - Every non-null `proposedSelector` has its identity checked. A `identity === 'same'` is the only acceptable outcome; `'different'` is a wrong-element fix and fails the scenario.
 - The cap is 5 tool calls for all scenarios, with no per-scenario exceptions or tuning.
 
+## The confidence gate
+
+Every heal attempt carries a **confidence level** (`high` / `low` / `none`) and a **status** (`healed` / `needs_review` / `failed`) computed by a pure, deterministic function from observable signals only — never from asking the model how sure it is.
+
+### Rules
+
+| Level | Conditions | Status | PR |
+|---|---|---|---|
+| `high` | verified pass, exactly 1 measured DOM match, ≤ 2 model-initiated tool calls | `healed` | eligible |
+| `low` | verified pass, but the match is ambiguous/unmeasured or > 2 tool calls | `needs_review` | no |
+| `none` | no verified pass within the cap | `failed` | no |
+
+Both the match-count threshold (1) and the tool-call threshold (2) live in `CONFIDENCE_THRESHOLDS` in `agent/loop/confidence.ts` and appear nowhere else. `deriveConfidence` contains no numeric literal; every numeric comparison goes through `CONFIDENCE_THRESHOLDS.*`.
+
+`deriveConfidence` is pure — it sees only `ConfidenceSignals`, an eight-field struct with no model text, no message content, no token counts, and no assistant prose. Confidence is never a model self-report. The signals are:
+- `verified` — true only if `run_single_test` executed and passed
+- `proposedSelector` — the selector the model proposed, or null
+- `toolCallCount` — model-initiated tool calls executed
+- `matchCount` — the deterministically measured count, or null
+- `matchMeasured` — whether the measurement succeeded
+- `capReached` — whether the tool-call cap was hit
+- `outcome` — `'healed'` / `'no-fix'` / `'error'`
+- `stopReason` — why the loop terminated
+
+The match count is measured by one deterministic `query_selector` call against the live page after the loop has already finished. It is not a model-initiated tool call, is not recorded in `transcript.toolCalls`, and does not count against `MAX_TOOL_CALLS`.
+
+A verified fix is never graded `none` — `low` means "a real, executed, passing fix that a human should look at", not "discarded". Only `high` (`confidence === 'high'`) opens a PR. `prEligible` is identical to `confidence === 'high'` and is the only PR authorisation in the system. Task 5.1 must call `assertPrEligible` before creating a branch. A human always merges; the tool never auto-merges.
+
+**Known measurement caveat:** the page is measured in its idle post-navigation state. A selector for an element that only appears after an interaction can measure `0` matches and grade `low`. That is deliberate and conservative.
+
 ## Known limitations (v1)
 
 1. `DEFAULT_APP_URL` duplicates the base URL in the three Playwright configs; this is accepted as a v1 limitation rather than importing a config.
@@ -541,9 +585,8 @@ Scenario 5's `oracleSelector` is null by construction: the element no longer exi
 
 ## Not in this component
 
-- **Confidence scoring** (Task 3.4) — no `high`/`low`/`none` value is computed.
+- **PR creation** is still Task 5.1 — this component computes `prEligible` and refuses anything else via `assertPrEligible`, but opens no branch, commit, or pull request, and never merges.
 - **Persistence** (Task 4.2) — no PostgreSQL, no `heal_attempts` row, no writing the transcript to disk.
-- **PR creation** (Task 5.1) — no Octokit, no branches, no commits.
 - **Dashboard, metrics** (Phases 6–7) — no aggregation of usage, no cost reporting surfaces.
 - **Re-classification** — the loop consumes a `ClassifiedFailure`; it never inspects Playwright error text to decide what kind of failure it is.
 - **Prompt-tuning harness, eval framework** — one system prompt, one message shape, no experiment infrastructure.

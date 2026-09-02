@@ -1,4 +1,5 @@
 import { classifyResultsFile } from '../../classifier/failure-classifier.js';
+import { assessHealResult, measureVerifiedFix } from '../confidence.js';
 import { createOpenAIClient } from '../openai-client.js';
 import { createPlaywrightToolbox, DEFAULT_APP_URL } from '../playwright-toolbox.js';
 import { healFailure, MAX_TOOL_CALLS } from '../heal-loop.js';
@@ -96,20 +97,24 @@ async function main(): Promise<void> {
 
   const specSource = await readSpecSourceFromDisk(failure.specFile);
 
-  let result;
+  let assessment;
   try {
-    result = await healFailure(failure, {
+    const result = await healFailure(failure, {
       model: client,
       toolbox,
       appUrl: args.url,
       specSource,
     });
+    const measurement = await measureVerifiedFix(toolbox, result);
+    assessment = assessHealResult(result, measurement);
   } finally {
     await toolbox.close();
   }
 
+  const result = assessment.result;
+
   if (args.json) {
-    console.log(JSON.stringify(result, null, 2));
+    console.log(JSON.stringify(assessment, null, 2));
   } else {
     // Print one-liner summary
     const proposedStr = result.proposedSelector ?? '-';
@@ -118,6 +123,9 @@ async function main(): Promise<void> {
     );
     process.stdout.write(
       `outcome=${result.outcome} stopReason=${result.stopReason} verified=${result.verified} proposed=${proposedStr} toolCalls=${result.toolCallCount}/${MAX_TOOL_CALLS} capReached=${result.capReached} modelTurns=${result.modelTurnCount} model=${result.model} durationMs=${result.durationMs}\n`,
+    );
+    process.stdout.write(
+      `confidence=${assessment.confidence} status=${assessment.status} prEligible=${assessment.prEligible} matchCount=${assessment.measurement?.matchCount ?? '-'} measured=${assessment.measurement?.measured ?? false} reason=${assessment.failureReason ?? '-'}\n`,
     );
 
     // Print each tool call

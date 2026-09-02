@@ -190,6 +190,8 @@ Hand-rolled OpenAI loop with a hard cap of 5 tool calls. Target: the renamed-`id
 
 ### Task 3.4 — Confidence gate
 
+**Status:** ✅ Done — see `plans/3.4.md`.
+
 Implement the high/low/none rules from `DESIGN.md`.
 
 **Acceptance criteria:**

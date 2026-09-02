@@ -2,6 +2,8 @@ import { readFile } from 'node:fs/promises';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ClassifiedFailure } from '../classifier/failure-classifier.js';
+import { assessHealResult, measureVerifiedFix } from './confidence.js';
+import type { HealAssessment } from './confidence.js';
 import { healFailure } from './heal-loop.js';
 import { clampSpecSource } from './prompt.js';
 import type { HealResult, HealToolbox, ModelClient } from './types.js';
@@ -26,6 +28,11 @@ export interface HealQueueResult {
   readonly durationMs: number;
   /** One entry per input failure, in input order. Never shorter than the input. */
   readonly results: readonly HealResult[];
+  /**
+   * One entry per input failure, in input order, aligned index-for-index with `results`.
+   * `assessments[i].result` is `results[i]` by reference.
+   */
+  readonly assessments: readonly HealAssessment[];
 }
 
 /**
@@ -56,6 +63,7 @@ export async function healQueueSequentially(
   const startedAt = new Date().toISOString();
   const t0 = Date.now();
   const results: HealResult[] = [];
+  const assessments: HealAssessment[] = [];
 
   for (const failure of failures) {
     // Read the spec source — never throws
@@ -72,21 +80,24 @@ export async function healQueueSequentially(
       toolbox = await deps.createToolbox(failure);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      results.push(toolboxErrorResult(failure, deps.model.model, message));
+      const errResult = toolboxErrorResult(failure, deps.model.model, message);
+      results.push(errResult);
+      assessments.push(assessHealResult(errResult, null));
       continue;
     }
 
     // Heal the failure
     try {
-      results.push(
-        await healFailure(failure, {
-          model: deps.model,
-          toolbox,
-          appUrl: deps.appUrl,
-          specSource,
-          ...(deps.maxToolCalls === undefined ? {} : { maxToolCalls: deps.maxToolCalls }),
-        }),
-      );
+      const result = await healFailure(failure, {
+        model: deps.model,
+        toolbox,
+        appUrl: deps.appUrl,
+        specSource,
+        ...(deps.maxToolCalls === undefined ? {} : { maxToolCalls: deps.maxToolCalls }),
+      });
+      const measurement = await measureVerifiedFix(toolbox, result);
+      results.push(result);
+      assessments.push(assessHealResult(result, measurement));
     } finally {
       try {
         await toolbox.close();
@@ -100,6 +111,7 @@ export async function healQueueSequentially(
     startedAt,
     durationMs: Date.now() - t0,
     results,
+    assessments,
   };
 }
 

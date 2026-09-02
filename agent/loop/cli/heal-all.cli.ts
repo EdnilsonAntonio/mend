@@ -2,6 +2,8 @@ import { chromium } from '@playwright/test';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { classifyResultsFile } from '../../classifier/failure-classifier.js';
+import { summariseConfidence } from '../confidence.js';
+import type { ConfidenceTotals, HealAssessment } from '../confidence.js';
 import { createOpenAIClient } from '../openai-client.js';
 import { createPlaywrightToolbox, DEFAULT_APP_URL } from '../playwright-toolbox.js';
 import {
@@ -12,9 +14,13 @@ import {
   summariseMatrix,
 } from '../scenario-matrix.js';
 import { healQueueSequentially, readSpecSourceFromDisk } from '../heal-queue.js';
-import type { RunVerdict } from '../scenario-matrix.js';
+import type { RunVerdict, MatrixVerdict } from '../scenario-matrix.js';
 
 export const MAX_MATRIX_RUNS = 5;
+
+interface MatrixReport extends MatrixVerdict {
+  readonly confidenceTotals: ConfidenceTotals;
+}
 
 const DEFAULT_RESULTS_PATH = 'test-results/results.json';
 
@@ -124,6 +130,7 @@ async function main(): Promise<void> {
   const matrixStartedAt = new Date().toISOString();
   const matrixT0 = Date.now();
   const runVerdicts: RunVerdict[] = [];
+  const allAssessments: HealAssessment[] = [];
 
   for (let run = 1; run <= args.runs; run++) {
     const runStartedAt = new Date().toISOString();
@@ -136,6 +143,7 @@ async function main(): Promise<void> {
       createToolbox: (failure) => createPlaywrightToolbox(failure, { appUrl: args.url }),
       readSpecSource: readSpecSourceFromDisk,
     });
+    allAssessments.push(...queueResult.assessments);
 
     // Identity checks: launch one browser and page
     const identities: (string | null)[] = [];
@@ -187,7 +195,7 @@ async function main(): Promise<void> {
 
     // Print per-scenario lines for this run (only in default mode, not --json)
     if (!args.json) {
-      for (const scenario of scenarios) {
+      for (const [i, scenario] of scenarios.entries()) {
         const proposedStr = scenario.proposedSelector ?? '-';
         const identityStr = scenario.identity ?? '-';
         const reasonsStr =
@@ -195,9 +203,10 @@ async function main(): Promise<void> {
             ? scenario.failureReasons.join(',')
             : '-';
         const verdictStr = scenario.pass ? 'PASS' : 'FAIL';
+        const a = queueResult.assessments[i];
 
         process.stdout.write(
-          `run=${run}/${args.runs} scenario=${scenario.scenario} spec=${scenario.specFile} required=${scenario.requiredOutcome} outcome=${scenario.outcome} stopReason=${scenario.stopReason} proposed=${proposedStr} toolCalls=${scenario.toolCallCount}/5 identity=${identityStr} verdict=${verdictStr} reasons=${reasonsStr}\n`,
+          `run=${run}/${args.runs} scenario=${scenario.scenario} spec=${scenario.specFile} required=${scenario.requiredOutcome} outcome=${scenario.outcome} stopReason=${scenario.stopReason} proposed=${proposedStr} toolCalls=${scenario.toolCallCount}/5 identity=${identityStr} verdict=${verdictStr} reasons=${reasonsStr} confidence=${a?.confidence ?? '-'} status=${a?.status ?? '-'} prEligible=${a?.prEligible ?? false} matchCount=${a?.measurement?.matchCount ?? '-'}\n`,
         );
       }
     }
@@ -211,9 +220,12 @@ async function main(): Promise<void> {
     runVerdicts,
   );
 
+  const confidenceTotals = summariseConfidence(allAssessments);
+  const matrixReport: MatrixReport = { ...matrix, confidenceTotals };
+
   // Print output
   if (args.json) {
-    console.log(JSON.stringify(matrix, null, 2));
+    console.log(JSON.stringify(matrixReport, null, 2));
   } else {
     // Print per-scenario summary lines
     for (const summary of matrix.perScenario) {
@@ -222,6 +234,11 @@ async function main(): Promise<void> {
         `scenario=${summary.scenario} spec=${summary.specFile} attempts=${summary.attempts} healed=${summary.healed} noFix=${summary.noFix} errors=${summary.errors} wrongElement=${summary.wrongElement} passes=${summary.passes} avgToolCalls=${summary.averageToolCalls} verdict=${verdictStr}\n`,
       );
     }
+
+    // Print confidence totals line
+    process.stdout.write(
+      `confidence attempts=${confidenceTotals.attempts} high=${confidenceTotals.high} low=${confidenceTotals.low} none=${confidenceTotals.none} prEligible=${confidenceTotals.prEligible}\n`,
+    );
 
     // Print final matrix line
     const finalStr = matrix.pass ? 'true' : 'false';
@@ -234,7 +251,7 @@ async function main(): Promise<void> {
   if (args.jsonOut !== undefined) {
     try {
       await mkdir(dirname(args.jsonOut), { recursive: true });
-      await writeFile(args.jsonOut, JSON.stringify(matrix, null, 2), 'utf8');
+      await writeFile(args.jsonOut, JSON.stringify(matrixReport, null, 2), 'utf8');
     } catch (error) {
       const msg = error instanceof Error ? error.message : String(error);
       process.stderr.write(`Failed to write JSON output: ${msg}\n`);
