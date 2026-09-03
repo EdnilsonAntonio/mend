@@ -12,6 +12,7 @@
     "start:app": "node app-under-test/server.mjs",
     "test:e2e": "playwright test",
     "test:tools": "playwright test --config=playwright.tools.config.ts",
+    "test:db": "playwright test --config=playwright.db.config.ts",
     "typecheck": "tsc --noEmit",
     "break:on": "node breakage/apply.mjs on",
     "break:off": "node breakage/apply.mjs off",
@@ -21,12 +22,18 @@
     "tool:run-single-test": "tsx agent/tools/cli/run-single-test.cli.ts",
     "classify:failures": "tsx agent/classifier/cli/classify-failures.cli.ts",
     "heal:one": "tsx agent/loop/cli/heal.cli.ts",
-    "heal:all": "tsx agent/loop/cli/heal-all.cli.ts"
+    "heal:all": "tsx agent/loop/cli/heal-all.cli.ts",
+    "db:migrate": "tsx db/cli/migrate.cli.ts",
+    "db:migrate:status": "tsx db/cli/migrate.cli.ts --status"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
     "@types/node": "^26.3.0",
+    "@types/pg": "^8.23.1",
     "tsx": "^4.20.0",
     "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "pg": "^8.23.0"
   }
 }

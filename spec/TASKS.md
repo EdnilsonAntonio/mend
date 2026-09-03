@@ -211,6 +211,8 @@ A working agent whose failures are as well-behaved as its successes.
 
 ### Task 4.1 — Schema and migrations
 
+**Status:** ✅ Done — see `plans/4.1.md`.
+
 `test_runs` and `heal_attempts` per `DESIGN.md`, versioned migrations.
 
 **Acceptance criteria:**

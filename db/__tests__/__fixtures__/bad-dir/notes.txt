@@ -1,0 +1,2 @@
+This directory contains only this file, which does not match the migration filename pattern.
+It is used by migration-files.spec.ts to test that loadMigrationFiles rejects bad filenames.
