@@ -223,6 +223,8 @@ A working agent whose failures are as well-behaved as its successes.
 
 ### Task 4.2 — Persist runs and attempts
 
+**Status:** ✅ Done — see `plans/4.2.md`.
+
 **Acceptance criteria:**
 * Every attempt persisted, including `failed` and `needs_review`.
 * Transcript stored as queryable `jsonb`.

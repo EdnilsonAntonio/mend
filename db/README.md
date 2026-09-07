@@ -58,6 +58,28 @@ npm run test:db
 
 Runs the database test suite against `MEND_TEST_DATABASE_URL`. If `MEND_TEST_DATABASE_URL` is unset, the integration tests skip with a message.
 
+### Heal selector-drift failures and persist to database
+
+```bash
+npm run heal
+```
+
+Reads `test-results/results.json`, classifies failures, runs the heal agent on selector-drift failures, and persists the results to PostgreSQL. Requires `DATABASE_URL` and `OPENAI_API_KEY`. See `runner/README.md` for full documentation.
+
+**Exit codes:**
+- `0` — success (attempts may be `failed` if no fix found)
+- `1` — error (environment or database)
+- `2` — usage error
+- `3` — one or more attempts stranded (`status = 'investigating'`)
+
+### Run runner tests
+
+```bash
+npm run test:runner
+```
+
+Runs the runner integration test suite against `MEND_TEST_DATABASE_URL`. If `MEND_TEST_DATABASE_URL` is unset, the integration tests skip with a message.
+
 ## Environment variables
 
 ### `DATABASE_URL` (required by CLI)
@@ -167,6 +189,30 @@ Migrations are forward-only. To add a new migration after `0002_heal_attempts`:
 
 **Important:** An applied migration's file is never edited. The checksum is recorded in `schema_migrations`. If you discover a bug in an applied migration, write a new one (`0004_*`) to fix it. Editing an applied migration file causes a `checksum-mismatch` error on the next run.
 
-## Not in this task
+## Persistence (Task 4.2)
 
-No application code writes rows to `test_runs` or `heal_attempts` yet. That is Task 4.2. This task provides only the schema and the tool to apply it.
+The four write functions in `db/repository.ts` are the only writers of `test_runs` and `heal_attempts` rows:
+
+1. **`insertTestRun`** — inserts a `test_runs` row and returns the generated UUID. Called once per run.
+2. **`finishTestRun`** — updates `test_runs.finished_at` when the run completes.
+3. **`insertHealAttempt`** — inserts a `heal_attempts` row in `investigating` status with defaults for all other columns. The row is committed immediately before the agent runs, ensuring visibility into in-flight and crashed runs.
+4. **`settleHealAttempt`** — updates a row from `investigating` to a terminal status (`healed`, `needs_review`, `failed`), populated with the heal result. The `WHERE status = 'investigating'` clause makes this idempotency-safe: a terminal row can never be overwritten.
+
+### Transcript storage
+
+The `transcript` column holds a `PersistedTranscript` envelope (see `db/transcript.ts`) containing the full `HealTranscript` plus outcome metadata. The envelope is built by `buildTranscriptEnvelope`, serialised by `serialiseTranscript`, and bound to the SQL parameter as a `::jsonb` value.
+
+The serialisation uses a two-pass truncation guard:
+- **Pass 1:** If the full envelope fits within `MAX_TRANSCRIPT_BYTES` (2 MB), store it verbatim and set `truncated: false`.
+- **Pass 2:** Otherwise, replace `transcript.messages` with `[]` (removing the conversation history), then recursively clamp all string values deeper than `TRUNCATED_FIELD_CHARS` (4,000 characters) with a truncation marker. The result is persisted with `truncated: true`.
+
+This ensures the snapshot and tool results remain queryable even for large transcripts, while always fitting in a reasonable database row.
+
+### PR URL
+
+The `pr_url` column is written by Task 5.1 only. Task 4.2 never touches it; all rows written in this task have `pr_url IS NULL`.
+
+### High confidence and skipped entries
+
+- A `high`-confidence fix produces a `status = 'healed'`, `confidence = 'high'` row with a non-null `proposed_selector`.
+- Non-selector-drift failures (`classification = 'other'`) are counted in the run report but never inserted as `heal_attempts` rows. They are recorded in the classifier output, not the database.

@@ -13,6 +13,7 @@
     "test:e2e": "playwright test",
     "test:tools": "playwright test --config=playwright.tools.config.ts",
     "test:db": "playwright test --config=playwright.db.config.ts",
+    "test:runner": "playwright test --config=playwright.runner.config.ts",
     "typecheck": "tsc --noEmit",
     "break:on": "node breakage/apply.mjs on",
     "break:off": "node breakage/apply.mjs off",
@@ -23,6 +24,7 @@
     "classify:failures": "tsx agent/classifier/cli/classify-failures.cli.ts",
     "heal:one": "tsx agent/loop/cli/heal.cli.ts",
     "heal:all": "tsx agent/loop/cli/heal-all.cli.ts",
+    "heal": "tsx runner/cli/heal-run.cli.ts",
     "db:migrate": "tsx db/cli/migrate.cli.ts",
     "db:migrate:status": "tsx db/cli/migrate.cli.ts --status"
   },

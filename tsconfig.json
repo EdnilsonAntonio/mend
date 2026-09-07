@@ -19,8 +19,10 @@
     "playwright.tools.config.ts",
     "playwright.verify.config.ts",
     "playwright.db.config.ts",
+    "playwright.runner.config.ts",
     "tests/**/*.ts",
     "agent/**/*.ts",
-    "db/**/*.ts"
+    "db/**/*.ts",
+    "runner/**/*.ts"
   ]
 }
