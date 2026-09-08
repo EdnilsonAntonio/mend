@@ -70,7 +70,8 @@ Reads `test-results/results.json`, classifies failures, runs the heal agent on s
 - `0` — success (attempts may be `failed` if no fix found)
 - `1` — error (environment or database)
 - `2` — usage error
-- `3` — one or more attempts stranded (`status = 'investigating'`)
+- `3` — one or more attempts stranded (`status = 'investigating'`); takes precedence over `4`
+- `4` — one or more PR deliveries failed; attempts are persisted as `needs_review` with fixes intact
 
 ### Run runner tests
 
@@ -189,14 +190,22 @@ Migrations are forward-only. To add a new migration after `0002_heal_attempts`:
 
 **Important:** An applied migration's file is never edited. The checksum is recorded in `schema_migrations`. If you discover a bug in an applied migration, write a new one (`0004_*`) to fix it. Editing an applied migration file causes a `checksum-mismatch` error on the next run.
 
-## Persistence (Task 4.2)
+## Persistence
 
-The four write functions in `db/repository.ts` are the only writers of `test_runs` and `heal_attempts` rows:
+The write functions in `db/repository.ts` are the only writers of `test_runs` and `heal_attempts` rows:
+
+### Core functions (Task 4.2)
 
 1. **`insertTestRun`** — inserts a `test_runs` row and returns the generated UUID. Called once per run.
 2. **`finishTestRun`** — updates `test_runs.finished_at` when the run completes.
 3. **`insertHealAttempt`** — inserts a `heal_attempts` row in `investigating` status with defaults for all other columns. The row is committed immediately before the agent runs, ensuring visibility into in-flight and crashed runs.
 4. **`settleHealAttempt`** — updates a row from `investigating` to a terminal status (`healed`, `needs_review`, `failed`), populated with the heal result. The `WHERE status = 'investigating'` clause makes this idempotency-safe: a terminal row can never be overwritten.
+
+### PR delivery functions (Task 5.1)
+
+5. **`recordPrUrl`** — updates `heal_attempts.pr_url` for a settled `healed`/`high` attempt. Guarded by SQL: `WHERE status = 'healed' AND confidence = 'high' AND pr_url IS NULL`. Never called on a non-eligible attempt. Throws `not-found` if the attempt is not found or does not meet the guard conditions.
+
+6. **`toDeliveryFailureSettleInput`** — maps a high-confidence assessment whose PR delivery failed to a `SettleHealAttemptInput` that settles the attempt as `needs_review`/`low`, **preserving** `proposed_selector` and the full `transcript` (which still records the gate's verdict as `confidence='high'`). Called only when the opener returns failure. The failure reason is prefixed with `pr-delivery-failed:` and clamped to 500 characters. Throws if the assessment is not PR-eligible.
 
 ### Transcript storage
 
@@ -210,7 +219,9 @@ This ensures the snapshot and tool results remain queryable even for large trans
 
 ### PR URL
 
-The `pr_url` column is written by Task 5.1 only. Task 4.2 never touches it; all rows written in this task have `pr_url IS NULL`.
+The `pr_url` column is written only by `recordPrUrl` (Task 5.1). No other writer touches it; rows that do not have a PR are left with `pr_url IS NULL`.
+
+When PR delivery fails (API error), the row is settled as `needs_review`/`low` with `pr_url IS NULL`. The gate's verdict (`confidence='high'`, `prEligible=true`) is preserved in the `transcript` column as `transcript->>'confidence' = 'high'` and `transcript->>'prEligible' = 'true'`. The `confidence` **column** reads `'low'` to reflect the operational state (delivery failed), but the transcript holds the true gate verdict for reference. Phase 7 (metrics) should compute the heal rate from `transcript->>'confidence'` if it wants a GitHub-independent number.
 
 ### High confidence and skipped entries
 

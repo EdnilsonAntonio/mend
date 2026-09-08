@@ -6,12 +6,22 @@ import {
 } from '../../agent/loop/playwright-toolbox.js';
 import { readSpecSourceFromDisk } from '../../agent/loop/heal-queue.js';
 import { runHeal } from '../heal-run.js';
+import {
+  createOctokitApi,
+  createPullRequestOpener,
+  readSpecFileFromDisk,
+  resolveGitHubConfig,
+  type GitHubConfig,
+} from '../github-pr.js';
+import type { PullRequestOpener } from '../github-pr.js';
 
 interface Args {
   results: string;
   url: string;
   spec?: string;
   json: boolean;
+  base?: string;
+  noPr: boolean;
 }
 
 function parseArgs(): Args {
@@ -19,6 +29,7 @@ function parseArgs(): Args {
     results: 'test-results/results.json',
     url: DEFAULT_APP_URL,
     json: false,
+    noPr: false,
   };
 
   for (const arg of process.argv.slice(2)) {
@@ -28,8 +39,12 @@ function parseArgs(): Args {
       args.url = arg.slice('--url='.length);
     } else if (arg.startsWith('--spec=')) {
       args.spec = arg.slice('--spec='.length);
+    } else if (arg.startsWith('--base=')) {
+      args.base = arg.slice('--base='.length);
     } else if (arg === '--json') {
       args.json = true;
+    } else if (arg === '--no-pr') {
+      args.noPr = true;
     } else if (arg.startsWith('-') || arg.startsWith('--')) {
       // Unknown flag
       return { ...args, results: '', url: '' }; // Signal error
@@ -43,8 +58,8 @@ function parseArgs(): Args {
 }
 
 function usage(): void {
-  const usageText = `Usage: npx tsx runner/cli/heal-run.cli.ts [--results=<path>] [--url=<url>] [--spec=<path>] [--json]
-   or: npm run --silent heal -- [--results=<path>] [--url=<url>] [--spec=<path>] [--json]`;
+  const usageText = `Usage: npx tsx runner/cli/heal-run.cli.ts [--results=<path>] [--url=<url>] [--spec=<path>] [--base=<branch>] [--json] [--no-pr]
+   or: npm run --silent heal -- [--results=<path>] [--url=<url>] [--spec=<path>] [--base=<branch>] [--json] [--no-pr]`;
   process.stderr.write(usageText + '\n');
 }
 
@@ -74,6 +89,31 @@ async function main(): Promise<void> {
     process.exit(1);
   }
 
+  // GitHub PR configuration
+  let openPullRequest: PullRequestOpener | undefined;
+  if (!args.noPr) {
+    let config: GitHubConfig | null = null;
+    try {
+      config = resolveGitHubConfig(process.env);
+    } catch (error) {
+      process.stderr.write(`${error instanceof Error ? error.message : String(error)}\n`);
+      process.exit(1);
+    }
+    if (config === null) {
+      if (!args.json) {
+        process.stdout.write('[pr] disabled: GITHUB_TOKEN is not set\n');
+      }
+    } else {
+      const effective = args.base === undefined ? config : { ...config, baseBranch: args.base };
+      openPullRequest = createPullRequestOpener({
+        config: effective,
+        api: createOctokitApi(effective),
+        readSpecFile: readSpecFileFromDisk,
+        ...(args.json ? {} : { logger: (line: string) => process.stdout.write(line + '\n') }),
+      });
+    }
+  }
+
   // Run heal
   let report;
   try {
@@ -87,6 +127,7 @@ async function main(): Promise<void> {
         createPlaywrightToolbox(failure, { appUrl: args.url }),
       readSpecSource: readSpecSourceFromDisk,
       logger: args.json ? undefined : (line) => process.stdout.write(line + '\n'),
+      ...(openPullRequest === undefined ? {} : { openPullRequest }),
     });
   } catch (error) {
     const msg = error instanceof Error ? error.message : String(error);
@@ -104,13 +145,19 @@ async function main(): Promise<void> {
     const investigating = report.attempts.filter((a) => a.status === 'investigating').length;
 
     console.log(
-      `heal ok: run=${report.testRunId} attempts=${report.attempts.length} healed=${healed} needs_review=${needs_review} failed=${failed} investigating=${investigating} (${report.durationMs}ms)`,
+      `heal ok: run=${report.testRunId} attempts=${report.attempts.length} healed=${healed} needs_review=${needs_review} failed=${failed} investigating=${investigating} prs=${report.prsOpened} (${report.durationMs}ms)`,
     );
   }
 
   // Exit with appropriate code
   const hasInvestigating = report.attempts.some((a) => a.status === 'investigating');
-  process.exit(hasInvestigating ? 3 : 0);
+  if (hasInvestigating) {
+    process.exit(3);
+  }
+  if (report.prFailures > 0) {
+    process.exit(4);
+  }
+  process.exit(0);
 }
 
 main().catch((error) => {

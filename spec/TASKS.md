@@ -236,6 +236,8 @@ A working agent whose failures are as well-behaved as its successes.
 
 ### Task 5.1 — GitHub PR creation
 
+**Status:** ✅ Done — see `plans/5.1.md`.
+
 Branch, commit, PR via Octokit, with the diff and a reasoning summary in the body.
 
 **Acceptance criteria:**

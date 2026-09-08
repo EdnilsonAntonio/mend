@@ -4,7 +4,7 @@ import type {
   HealAssessment,
   HealStatus,
 } from '../agent/loop/confidence.js';
-import { assertConfidenceInvariant } from '../agent/loop/confidence.js';
+import { assertConfidenceInvariant, assertPrEligible } from '../agent/loop/confidence.js';
 import { createDbClient, isValidSchemaName } from './client.js';
 import { serialiseTranscript } from './transcript.js';
 import { TOOL_CALL_COUNT_CEILING } from './schema-contract.js';
@@ -256,5 +256,79 @@ export function toSettleInput(
     toolCallCount: assessment.result.toolCallCount,
     failureReason: assessment.failureReason,
     transcriptJson: serialiseTranscript(assessment).json,
+  };
+}
+
+export const PR_DELIVERY_FAILURE_REASON_PREFIX = 'pr-delivery-failed';
+export const MAX_FAILURE_REASON_CHARS = 500;
+
+/**
+ * The only writer of heal_attempts.pr_url. Guarded in SQL so a low/none/already-delivered
+ * attempt can never receive a PR URL.
+ */
+export async function recordPrUrl(
+  client: PgClient,
+  attemptId: string,
+  prUrl: string,
+): Promise<void> {
+  // Validate the URL before querying
+  if (
+    !(
+      prUrl.startsWith('https://') &&
+      prUrl.trim() === prUrl &&
+      prUrl.length <= 2000
+    )
+  ) {
+    throw new PersistenceError(
+      'invariant-violation',
+      `Invalid PR URL: must be https://, trimmed, and <= 2000 chars`,
+    );
+  }
+
+  const result = await client.query(
+    `UPDATE heal_attempts
+       SET pr_url = $2
+     WHERE id = $1
+       AND status = 'healed'
+       AND confidence = 'high'
+       AND pr_url IS NULL`,
+    [attemptId, prUrl],
+  );
+
+  if (result.rowCount !== 1) {
+    throw new PersistenceError(
+      'not-found',
+      `recordPrUrl: attempt ${attemptId} not found, not healed/high, or already has a PR URL`,
+    );
+  }
+}
+
+/**
+ * Maps a high-confidence assessment whose PR delivery failed to a needs_review settle input.
+ * The proposed selector and the full transcript (which still records confidence 'high') are
+ * preserved: the fix is never lost. Throws if the assessment is not PR-eligible.
+ */
+export function toDeliveryFailureSettleInput(
+  attemptId: string,
+  assessment: HealAssessment,
+  deliveryError: string,
+): SettleHealAttemptInput {
+  // This mapper is only legal for a high-confidence assessment.
+  // A throw here is a programming error, not a runtime condition.
+  assertPrEligible(assessment);
+
+  // Clamp and format the delivery error message
+  const errorMessage = `${PR_DELIVERY_FAILURE_REASON_PREFIX}: ${deliveryError}`
+    .replace(/[\x00-\x1f\x7f]/g, ' ')
+    .slice(0, MAX_FAILURE_REASON_CHARS);
+
+  return {
+    attemptId,
+    status: 'needs_review',
+    confidence: 'low',
+    proposedSelector: assessment.result.proposedSelector, // the fix is kept
+    toolCallCount: assessment.result.toolCallCount,
+    failureReason: errorMessage,
+    transcriptJson: serialiseTranscript(assessment).json, // unmodified: still says high
   };
 }

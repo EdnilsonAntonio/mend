@@ -1,6 +1,7 @@
 import type { ClassifiedFailure } from '../agent/classifier/failure-classifier.js';
 import { classifyResultsFile } from '../agent/classifier/failure-classifier.js';
 import {
+  assertPrEligible,
   summariseConfidence,
   type ConfidenceTotals,
   type HealAssessment,
@@ -13,9 +14,12 @@ import {
   finishTestRun,
   insertHealAttempt,
   insertTestRun,
+  recordPrUrl,
   settleHealAttempt,
+  toDeliveryFailureSettleInput,
   toSettleInput,
 } from '../db/repository.js';
+import type { PullRequestOpener } from './github-pr.js';
 
 export interface HealRunOptions {
   readonly connectionString: string;
@@ -31,7 +35,15 @@ export interface HealRunOptions {
   readonly readSpecSource: (specFile: string) => Promise<string | null>;
   /** One line per event, no trailing newline. Default: no-op. */
   readonly logger?: (line: string) => void;
+  /**
+   * Opens a pull request for a high-confidence heal. Omitted or undefined means PR delivery
+   * is disabled — high-confidence attempts still settle as `healed`/`high` with a null pr_url.
+   * Never throws: it returns a structured outcome.
+   */
+  readonly openPullRequest?: PullRequestOpener;
 }
+
+export type PrDelivery = 'not-attempted' | 'opened' | 'failed';
 
 export interface PersistedAttempt {
   readonly attemptId: string;
@@ -43,6 +55,9 @@ export interface PersistedAttempt {
   readonly proposedSelector: string | null;
   readonly toolCallCount: number;
   readonly prEligible: boolean;
+  /** The gate's verdict is `prEligible`; this is what delivery actually did. */
+  readonly prDelivery: PrDelivery;
+  readonly prUrl: string | null;
   /** Non-null only when status is 'investigating'. */
   readonly error: string | null;
 }
@@ -59,8 +74,10 @@ export interface HealRunReport {
   readonly skipped: number;
   /** One entry per queued failure, in queue order. */
   readonly attempts: readonly PersistedAttempt[];
-  /** Over the attempts that settled. */
+  /** Over the attempts that settled. Summarises gate verdicts, not persisted rows: a delivery failure is counted as high here while its row reads needs_review. */
   readonly totals: ConfidenceTotals;
+  readonly prsOpened: number;
+  readonly prFailures: number;
 }
 
 export async function runHeal(options: HealRunOptions): Promise<HealRunReport> {
@@ -119,24 +136,58 @@ export async function runHeal(options: HealRunOptions): Promise<HealRunReport> {
           throw new Error('heal queue returned no assessment');
         }
 
+        // PR delivery logic
+        let prDelivery: PrDelivery = 'not-attempted';
+        let prUrl: string | null = null;
+        let deliveryError: string | null = null;
+
+        if (assessment.prEligible && options.openPullRequest !== undefined) {
+          assertPrEligible(assessment);
+          const outcome = await options.openPullRequest({ attemptId, assessment });
+          if (outcome.ok) {
+            prDelivery = 'opened';
+            prUrl = outcome.prUrl;
+            log(`[pr] ${attemptId} opened url=${outcome.prUrl} branch=${outcome.branch}`);
+          } else {
+            prDelivery = 'failed';
+            deliveryError = `${outcome.code}: ${outcome.message}`;
+            log(`[pr] ${attemptId} failed code=${outcome.code}`);
+          }
+        }
+
+        const persistedStatus = prDelivery === 'failed' ? 'needs_review' : assessment.status;
+        const persistedConfidence = prDelivery === 'failed' ? 'low' : assessment.confidence;
+
         // Settle the attempt
-        await settleHealAttempt(client, toSettleInput(attemptId, assessment));
+        if (prDelivery === 'failed' && deliveryError !== null) {
+          await settleHealAttempt(
+            client,
+            toDeliveryFailureSettleInput(attemptId, assessment, deliveryError),
+          );
+        } else {
+          await settleHealAttempt(client, toSettleInput(attemptId, assessment));
+          if (prUrl !== null) {
+            await recordPrUrl(client, attemptId, prUrl);
+          }
+        }
 
         // Record in the report
         attempts.push({
           attemptId,
           specFile: failure.specFile,
           testName: failure.testName,
-          status: assessment.status,
-          confidence: assessment.confidence,
+          status: persistedStatus,
+          confidence: persistedConfidence,
           proposedSelector: assessment.result.proposedSelector,
           toolCallCount: assessment.result.toolCallCount,
           prEligible: assessment.prEligible,
+          prDelivery,
+          prUrl,
           error: null,
         });
 
         const proposedDisplay = assessment.result.proposedSelector ?? '-';
-        log(`[settled] ${attemptId} spec=${failure.specFile} status=${assessment.status} confidence=${assessment.confidence} proposed=${proposedDisplay} toolCalls=${assessment.result.toolCallCount} prEligible=${assessment.prEligible}`);
+        log(`[settled] ${attemptId} spec=${failure.specFile} status=${persistedStatus} confidence=${persistedConfidence} proposed=${proposedDisplay} toolCalls=${assessment.result.toolCallCount} prEligible=${assessment.prEligible}`);
 
         settledAssessments.push(assessment);
       } catch (error) {
@@ -153,6 +204,8 @@ export async function runHeal(options: HealRunOptions): Promise<HealRunReport> {
           proposedSelector: null,
           toolCallCount: 0,
           prEligible: false,
+          prDelivery: 'not-attempted',
+          prUrl: null,
           error: errorMessage,
         });
       }
@@ -176,6 +229,8 @@ export async function runHeal(options: HealRunOptions): Promise<HealRunReport> {
       skipped: report.skipped.length,
       attempts,
       totals,
+      prsOpened: attempts.filter((a) => a.prDelivery === 'opened').length,
+      prFailures: attempts.filter((a) => a.prDelivery === 'failed').length,
     };
   } finally {
     await client.end();

@@ -7,8 +7,13 @@ import {
   finishTestRun,
   insertHealAttempt,
   settleHealAttempt,
+  recordPrUrl,
+  toDeliveryFailureSettleInput,
   PersistenceError,
 } from '../repository.js';
+import { assessHealResult } from '../../agent/loop/confidence.js';
+import type { HealResult } from '../../agent/loop/types.js';
+import type { VerifiedFixMeasurement } from '../../agent/loop/confidence.js';
 
 const url = resolveTestDatabaseUrl(process.env);
 
@@ -618,4 +623,438 @@ test('13. connectRunClient with invalid schema name rejects', async () => {
   if (error instanceof PersistenceError) {
     expect(error.code).toBe('invalid-schema-name');
   }
+});
+
+test('14. recordPrUrl on a settled healed/high attempt sets pr_url', async () => {
+  if (url === null) {
+    return;
+  }
+
+  const client = await connectRunClient(url, schema);
+  try {
+    const testRunId = await insertTestRun(client, {
+      startedAt: '2025-01-01T00:00:00Z',
+      total: 1,
+      passed: 0,
+      failed: 1,
+    });
+
+    const attemptId = await insertHealAttempt(client, {
+      testRunId,
+      specFile: 'tests/example.spec.ts',
+      testName: 'should work',
+      originalSelector: '#btn',
+    });
+
+    await settleHealAttempt(client, {
+      attemptId,
+      status: 'healed',
+      confidence: 'high',
+      proposedSelector: '.btn-primary',
+      toolCallCount: 1,
+      failureReason: null,
+      transcriptJson: '{"test": "data"}',
+    });
+
+    const prUrl = 'https://github.com/o/r/pull/7';
+    await recordPrUrl(client, attemptId, prUrl);
+
+    const result = await client.query(
+      'SELECT pr_url FROM heal_attempts WHERE id = $1',
+      [attemptId],
+    );
+
+    expect(result.rows[0]?.pr_url).toBe(prUrl);
+  } finally {
+    await client.end();
+  }
+});
+
+test('15. recordPrUrl called twice for the same attempt rejects second call', async () => {
+  if (url === null) {
+    return;
+  }
+
+  const client = await connectRunClient(url, schema);
+  try {
+    const testRunId = await insertTestRun(client, {
+      startedAt: '2025-01-01T00:00:00Z',
+      total: 1,
+      passed: 0,
+      failed: 1,
+    });
+
+    const attemptId = await insertHealAttempt(client, {
+      testRunId,
+      specFile: 'tests/example.spec.ts',
+      testName: 'should work',
+      originalSelector: '#btn',
+    });
+
+    await settleHealAttempt(client, {
+      attemptId,
+      status: 'healed',
+      confidence: 'high',
+      proposedSelector: '.btn-primary',
+      toolCallCount: 1,
+      failureReason: null,
+      transcriptJson: '{"test": "data"}',
+    });
+
+    const prUrl1 = 'https://github.com/o/r/pull/7';
+    await recordPrUrl(client, attemptId, prUrl1);
+
+    // Second call should fail
+    let error: unknown;
+    try {
+      const prUrl2 = 'https://github.com/o/r/pull/8';
+      await recordPrUrl(client, attemptId, prUrl2);
+    } catch (err) {
+      error = err;
+    }
+
+    expect(error).toBeInstanceOf(PersistenceError);
+    if (error instanceof PersistenceError) {
+      expect(error.code).toBe('not-found');
+    }
+
+    // Verify first URL is unchanged
+    const result = await client.query(
+      'SELECT pr_url FROM heal_attempts WHERE id = $1',
+      [attemptId],
+    );
+    expect(result.rows[0]?.pr_url).toBe(prUrl1);
+  } finally {
+    await client.end();
+  }
+});
+
+test('16. recordPrUrl on needs_review/low or failed/none attempt rejects', async () => {
+  if (url === null) {
+    return;
+  }
+
+  const client = await connectRunClient(url, schema);
+  try {
+    const testRunId = await insertTestRun(client, {
+      startedAt: '2025-01-01T00:00:00Z',
+      total: 2,
+      passed: 0,
+      failed: 2,
+    });
+
+    // needs_review/low attempt
+    const attemptId1 = await insertHealAttempt(client, {
+      testRunId,
+      specFile: 'tests/example.spec.ts',
+      testName: 'should work 1',
+      originalSelector: '#btn',
+    });
+
+    await settleHealAttempt(client, {
+      attemptId: attemptId1,
+      status: 'needs_review',
+      confidence: 'low',
+      proposedSelector: '.btn-primary',
+      toolCallCount: 3,
+      failureReason: 'ambiguous-match',
+      transcriptJson: '{"test": "data"}',
+    });
+
+    // failed/none attempt
+    const attemptId2 = await insertHealAttempt(client, {
+      testRunId,
+      specFile: 'tests/example.spec.ts',
+      testName: 'should work 2',
+      originalSelector: '#btn2',
+    });
+
+    await settleHealAttempt(client, {
+      attemptId: attemptId2,
+      status: 'failed',
+      confidence: 'none',
+      proposedSelector: null,
+      toolCallCount: 0,
+      failureReason: 'no-verified-fix',
+      transcriptJson: '{"test": "data"}',
+    });
+
+    // Try to record PR URL on needs_review attempt
+    let error1: unknown;
+    try {
+      await recordPrUrl(client, attemptId1, 'https://github.com/o/r/pull/1');
+    } catch (err) {
+      error1 = err;
+    }
+
+    expect(error1).toBeInstanceOf(PersistenceError);
+    if (error1 instanceof PersistenceError) {
+      expect(error1.code).toBe('not-found');
+    }
+
+    // Try to record PR URL on failed attempt
+    let error2: unknown;
+    try {
+      await recordPrUrl(client, attemptId2, 'https://github.com/o/r/pull/2');
+    } catch (err) {
+      error2 = err;
+    }
+
+    expect(error2).toBeInstanceOf(PersistenceError);
+    if (error2 instanceof PersistenceError) {
+      expect(error2.code).toBe('not-found');
+    }
+
+    // Verify both remain NULL
+    const result = await client.query(
+      'SELECT pr_url FROM heal_attempts WHERE id IN ($1, $2)',
+      [attemptId1, attemptId2],
+    );
+    expect(result.rows.every((r: any) => r.pr_url === null)).toBe(true);
+  } finally {
+    await client.end();
+  }
+});
+
+test('17. recordPrUrl with invalid URL rejects and issues no UPDATE', async () => {
+  if (url === null) {
+    return;
+  }
+
+  const client = await connectRunClient(url, schema);
+  try {
+    const testRunId = await insertTestRun(client, {
+      startedAt: '2025-01-01T00:00:00Z',
+      total: 1,
+      passed: 0,
+      failed: 1,
+    });
+
+    const attemptId = await insertHealAttempt(client, {
+      testRunId,
+      specFile: 'tests/example.spec.ts',
+      testName: 'should work',
+      originalSelector: '#btn',
+    });
+
+    await settleHealAttempt(client, {
+      attemptId,
+      status: 'healed',
+      confidence: 'high',
+      proposedSelector: '.btn-primary',
+      toolCallCount: 1,
+      failureReason: null,
+      transcriptJson: '{"test": "data"}',
+    });
+
+    // Try with non-https URL
+    let error: unknown;
+    try {
+      await recordPrUrl(client, attemptId, 'ftp://example.com');
+    } catch (err) {
+      error = err;
+    }
+
+    expect(error).toBeInstanceOf(PersistenceError);
+    if (error instanceof PersistenceError) {
+      expect(error.code).toBe('invariant-violation');
+    }
+
+    // Verify pr_url is unchanged (still NULL)
+    const result = await client.query(
+      'SELECT pr_url FROM heal_attempts WHERE id = $1',
+      [attemptId],
+    );
+    expect(result.rows[0]?.pr_url).toBeNull();
+  } finally {
+    await client.end();
+  }
+});
+
+test('18. toDeliveryFailureSettleInput creates needs_review/low input with fix preserved', async () => {
+  if (url === null) {
+    return;
+  }
+
+  // Create a high-confidence assessment
+  const result: HealResult = {
+    originalSelector: '#login-btn',
+    proposedSelector: '#signin-button',
+    specFile: 'tests/login-submit.spec.ts',
+    testName: 'submits the login form',
+    verified: true,
+    verification: {
+      candidateSelector: '#signin-button',
+      executed: true,
+      passed: true,
+      rejected: null,
+      changedLines: [{ lineNumber: 5, before: 'x', after: 'y' }],
+      durationMs: 1234,
+      output: 'Test passed',
+    },
+    outcome: 'healed',
+    stopReason: 'verified-fix',
+    toolCallCount: 1,
+    capReached: false,
+    modelTurnCount: 1,
+    model: 'gpt-4',
+    startedAt: '2024-01-01T00:00:00Z',
+    durationMs: 5000,
+    errorMessage: null,
+    transcript: {
+      bootstrapSnapshot: null,
+      bootstrapSpecSource: 'source',
+      messages: [],
+      toolCalls: [
+        {
+          index: 1,
+          toolCallId: 'call1',
+          tool: 'get_dom_snapshot',
+          rawArguments: '{}',
+          arguments: { specFile: 'tests/login-submit.spec.ts' },
+          ok: true,
+          result: { kind: 'dom-snapshot', url: 'http://localhost', html: '<body></body>', estimatedTokens: 100, elementCount: 0, truncated: false },
+          resultSummary: 'found button',
+          startedAt: '2024-01-01T00:00:00Z',
+          durationMs: 100,
+        },
+      ],
+      modelRequests: [
+        { turn: 1, finishReason: 'tool_calls', usage: null, contentPreview: '', requestedTools: [] },
+      ],
+    },
+  };
+
+  const measurement: VerifiedFixMeasurement = {
+    selector: result.proposedSelector!,
+    matchCount: 1,
+    measured: true,
+    error: null,
+    measuredAt: '2024-01-01T00:00:00Z',
+    durationMs: 100,
+  };
+
+  const assessment = assessHealResult(result, measurement);
+
+  // Create input from delivery failure
+  const attemptId = '00000000-0000-0000-0000-000000000000';
+  const deliveryError = 'boom';
+  const settleInput = toDeliveryFailureSettleInput(attemptId, assessment, deliveryError);
+
+  expect(settleInput.attemptId).toBe(attemptId);
+  expect(settleInput.status).toBe('needs_review');
+  expect(settleInput.confidence).toBe('low');
+  expect(settleInput.proposedSelector).toBe('#signin-button');
+  expect(settleInput.toolCallCount).toBe(1);
+  expect(settleInput.failureReason).toMatch(/^pr-delivery-failed/);
+  expect(settleInput.failureReason).toContain('boom');
+
+  // Verify transcript is unmodified (still says high)
+  const transcript = JSON.parse(settleInput.transcriptJson);
+  expect(transcript.confidence).toBe('high');
+  expect(transcript.prEligible).toBe(true);
+
+  // Test with database: should succeed
+  const client = await connectRunClient(url, schema);
+  try {
+    const testRunId = await insertTestRun(client, {
+      startedAt: '2025-01-01T00:00:00Z',
+      total: 1,
+      passed: 0,
+      failed: 1,
+    });
+
+    const dbAttemptId = await insertHealAttempt(client, {
+      testRunId,
+      specFile: 'tests/example.spec.ts',
+      testName: 'should work',
+      originalSelector: '#btn',
+    });
+
+    const dbSettleInput = toDeliveryFailureSettleInput(dbAttemptId, assessment, 'test error');
+    await settleHealAttempt(client, dbSettleInput);
+
+    const result = await client.query(
+      'SELECT status, confidence, proposed_selector FROM heal_attempts WHERE id = $1',
+      [dbAttemptId],
+    );
+
+    expect(result.rows[0]?.status).toBe('needs_review');
+    expect(result.rows[0]?.confidence).toBe('low');
+    expect(result.rows[0]?.proposed_selector).not.toBeNull();
+  } finally {
+    await client.end();
+  }
+});
+
+test('toDeliveryFailureSettleInput with low assessment throws', async () => {
+  // Create a low-confidence assessment (too many tool calls)
+  const result: HealResult = {
+    originalSelector: '#login-btn',
+    proposedSelector: '#signin-button',
+    specFile: 'tests/login-submit.spec.ts',
+    testName: 'submits the login form',
+    verified: true,
+    verification: {
+      candidateSelector: '#signin-button',
+      executed: true,
+      passed: true,
+      rejected: null,
+      changedLines: [{ lineNumber: 5, before: 'x', after: 'y' }],
+      durationMs: 1234,
+      output: 'Test passed',
+    },
+    outcome: 'healed',
+    stopReason: 'verified-fix',
+    toolCallCount: 5, // At cap - will be low confidence
+    capReached: false,
+    modelTurnCount: 1,
+    model: 'gpt-4',
+    startedAt: '2024-01-01T00:00:00Z',
+    durationMs: 5000,
+    errorMessage: null,
+    transcript: {
+      bootstrapSnapshot: null,
+      bootstrapSpecSource: 'source',
+      messages: [],
+      toolCalls: [
+        {
+          index: 1,
+          toolCallId: 'call1',
+          tool: 'get_dom_snapshot',
+          rawArguments: '{}',
+          arguments: {},
+          ok: true,
+          result: { kind: 'dom-snapshot', url: 'http://localhost', html: '<body></body>', estimatedTokens: 100, elementCount: 0, truncated: false },
+          resultSummary: 'snapshot',
+          startedAt: '2024-01-01T00:00:00Z',
+          durationMs: 100,
+        },
+      ],
+      modelRequests: [
+        { turn: 1, finishReason: 'tool_calls', usage: null, contentPreview: '', requestedTools: [] },
+      ],
+    },
+  };
+
+  const measurement: VerifiedFixMeasurement = {
+    selector: result.proposedSelector!,
+    matchCount: 1,
+    measured: true,
+    error: null,
+    measuredAt: '2024-01-01T00:00:00Z',
+    durationMs: 100,
+  };
+
+  const assessment = assessHealResult(result, measurement);
+
+  let error: unknown;
+  try {
+    toDeliveryFailureSettleInput('id', assessment, 'error');
+  } catch (err) {
+    error = err;
+  }
+
+  expect(error).toBeDefined();
+  expect(error instanceof Error).toBe(true);
 });

@@ -369,3 +369,226 @@ test('8. two runs create distinct test_runs rows', async () => {
     await client.end();
   }
 });
+
+test('9. delivery disabled is unchanged', async () => {
+  if (url === null) {
+    return;
+  }
+
+  const client = await connectRunClient(url, schema);
+  try {
+    const model = scriptedModel([
+      { toolCalls: [{ name: 'query_selector', args: { selector: '.fixed-btn' } }] },
+      { toolCalls: [{ name: 'run_single_test', args: { candidate: '.fixed-btn' } }] },
+    ]);
+
+    // Run with no openPullRequest option
+    const report = await runHeal({
+      connectionString: url,
+      resultsPath: 'agent/classifier/__fixtures__/broken-run.results.json',
+      appUrl: 'http://localhost:3000',
+      schema,
+      model,
+      createToolbox: async () =>
+        closableFakeToolbox({
+          snapshotHtml: '<html><body><button class="fixed-btn">Click</button></body></html>',
+          matchCounts: { '.fixed-btn': 1 },
+          passingCandidates: ['.fixed-btn'],
+        }),
+      readSpecSource: async () => null,
+      // No openPullRequest
+    });
+
+    // Should have healed attempts
+    const healedResult = await client.query(
+      "SELECT COUNT(*) as c FROM heal_attempts WHERE test_run_id = $1 AND status = 'healed'",
+      [report.testRunId],
+    );
+    expect(Number(healedResult.rows[0]?.c ?? 0)).toBeGreaterThan(0);
+
+    // All healed attempts should have pr_url NULL
+    const prUrlResult = await client.query(
+      "SELECT COUNT(*) as c FROM heal_attempts WHERE test_run_id = $1 AND status = 'healed' AND pr_url IS NULL",
+      [report.testRunId],
+    );
+    expect(Number(prUrlResult.rows[0]?.c ?? 0)).toBeGreaterThan(0);
+
+    // Report should reflect no PR attempts
+    expect(report.prsOpened).toBe(0);
+    expect(report.prFailures).toBe(0);
+    expect(report.attempts.every((a) => a.prDelivery === 'not-attempted')).toBe(true);
+  } finally {
+    await client.end();
+  }
+});
+
+test('10. PR opened and pr_url persisted', async () => {
+  if (url === null) {
+    return;
+  }
+
+  const client = await connectRunClient(url, schema);
+  try {
+    const model = scriptedModel([
+      { toolCalls: [{ name: 'query_selector', args: { selector: '.fixed-btn' } }] },
+      { toolCalls: [{ name: 'run_single_test', args: { candidate: '.fixed-btn' } }] },
+    ]);
+
+    const mockOpener = async () => ({
+      ok: true as const,
+      prUrl: 'https://github.com/o/r/pull/7',
+      prNumber: 7,
+      branch: 'mend/heal/x-00000000',
+      headSha: 'abc123',
+    });
+
+    const report = await runHeal({
+      connectionString: url,
+      resultsPath: 'agent/classifier/__fixtures__/broken-run.results.json',
+      appUrl: 'http://localhost:3000',
+      schema,
+      model,
+      createToolbox: async () =>
+        closableFakeToolbox({
+          snapshotHtml: '<html><body><button class="fixed-btn">Click</button></body></html>',
+          matchCounts: { '.fixed-btn': 1 },
+          passingCandidates: ['.fixed-btn'],
+        }),
+      readSpecSource: async () => null,
+      openPullRequest: mockOpener,
+    });
+
+    // Should have healed attempt with pr_url
+    const prResult = await client.query(
+      "SELECT status, confidence, pr_url FROM heal_attempts WHERE test_run_id = $1 AND status = 'healed'",
+      [report.testRunId],
+    );
+    expect(prResult.rows.length).toBeGreaterThan(0);
+    const healedRow = prResult.rows[0];
+    expect(healedRow.status).toBe('healed');
+    expect(healedRow.confidence).toBe('high');
+    expect(healedRow.pr_url).toBe('https://github.com/o/r/pull/7');
+
+    // Report should show opened PR
+    expect(report.prsOpened).toBeGreaterThan(0);
+    expect(report.attempts.some((a) => a.prDelivery === 'opened')).toBe(true);
+    const openedAttempt = report.attempts.find((a) => a.prDelivery === 'opened');
+    expect(openedAttempt?.prUrl).toBe('https://github.com/o/r/pull/7');
+  } finally {
+    await client.end();
+  }
+});
+
+test('11. API failure never loses the fix', async () => {
+  if (url === null) {
+    return;
+  }
+
+  const client = await connectRunClient(url, schema);
+  try {
+    const model = scriptedModel([
+      { toolCalls: [{ name: 'query_selector', args: { selector: '.fixed-btn' } }] },
+      { toolCalls: [{ name: 'run_single_test', args: { candidate: '.fixed-btn' } }] },
+    ]);
+
+    const mockOpener = async () => ({
+      ok: false as const,
+      code: 'github-api-error' as const,
+      message: 'boom',
+    });
+
+    const report = await runHeal({
+      connectionString: url,
+      resultsPath: 'agent/classifier/__fixtures__/broken-run.results.json',
+      appUrl: 'http://localhost:3000',
+      schema,
+      model,
+      createToolbox: async () =>
+        closableFakeToolbox({
+          snapshotHtml: '<html><body><button class="fixed-btn">Click</button></body></html>',
+          matchCounts: { '.fixed-btn': 1 },
+          passingCandidates: ['.fixed-btn'],
+        }),
+      readSpecSource: async () => null,
+      openPullRequest: mockOpener,
+    });
+
+    // Row should be needs_review/low with proposed_selector non-null and pr_url NULL
+    const rowResult = await client.query(
+      "SELECT status, confidence, proposed_selector, pr_url, failure_reason, transcript FROM heal_attempts WHERE test_run_id = $1",
+      [report.testRunId],
+    );
+    expect(rowResult.rows.length).toBeGreaterThan(0);
+
+    // Find the needs_review row
+    const needsReviewRow = rowResult.rows.find((r: any) => r.status === 'needs_review');
+    expect(needsReviewRow).toBeDefined();
+    if (needsReviewRow) {
+      expect(needsReviewRow.status).toBe('needs_review');
+      expect(needsReviewRow.confidence).toBe('low');
+      expect(needsReviewRow.proposed_selector).not.toBeNull();
+      expect(needsReviewRow.pr_url).toBeNull();
+      expect(needsReviewRow.failure_reason).toMatch(/^pr-delivery-failed/);
+      expect(needsReviewRow.failure_reason).toContain('boom');
+      // Transcript should still say high
+      const transcript = needsReviewRow.transcript;
+      expect(transcript.confidence).toBe('high');
+      expect(transcript.prEligible).toBe(true);
+    }
+
+    // Report should show failure
+    expect(report.prFailures).toBeGreaterThan(0);
+    expect(report.attempts.some((a) => a.prDelivery === 'failed')).toBe(true);
+    const failedAttempt = report.attempts.find((a) => a.prDelivery === 'failed');
+    expect(failedAttempt?.status).toBe('needs_review');
+    expect(failedAttempt?.prUrl).toBeNull();
+  } finally {
+    await client.end();
+  }
+});
+
+test('12. non-eligible attempts never reach the opener', async () => {
+  if (url === null) {
+    return;
+  }
+
+  let openerCalled = 0;
+
+  const client = await connectRunClient(url, schema);
+  try {
+    const model = scriptedModel([
+      { toolCalls: [{ name: 'get_dom_snapshot', args: {} }] },
+    ]);
+
+    const mockOpener = async () => {
+      openerCalled++;
+      throw new Error('should not be called');
+    };
+
+    const report = await runHeal({
+      connectionString: url,
+      resultsPath: 'agent/classifier/__fixtures__/broken-run.results.json',
+      appUrl: 'http://localhost:3000',
+      schema,
+      model,
+      createToolbox: async () =>
+        closableFakeToolbox({
+          snapshotHtml: '<html><body></body></html>',
+        }),
+      readSpecSource: async () => null,
+      openPullRequest: mockOpener,
+    });
+
+    // Row should be failed/none
+    const resultRows = await client.query(
+      "SELECT COUNT(*) as c FROM heal_attempts WHERE test_run_id = $1 AND status = 'failed' AND confidence = 'none'",
+      [report.testRunId],
+    );
+    expect(Number(resultRows.rows[0]?.c ?? 0)).toBeGreaterThan(0);
+
+    // Opener should never have been called
+    expect(openerCalled).toBe(0);
+  } finally {
+    await client.end();
+  }
+});
