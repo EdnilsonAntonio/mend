@@ -26,7 +26,12 @@
     "heal:all": "tsx agent/loop/cli/heal-all.cli.ts",
     "heal": "tsx runner/cli/heal-run.cli.ts",
     "db:migrate": "tsx db/cli/migrate.cli.ts",
-    "db:migrate:status": "tsx db/cli/migrate.cli.ts --status"
+    "db:migrate:status": "tsx db/cli/migrate.cli.ts --status",
+    "test:dashboard": "playwright test --config=playwright.dashboard.config.ts",
+    "dashboard:install": "npm --prefix dashboard install",
+    "dashboard:dev": "npm --prefix dashboard run dev",
+    "dashboard:build": "npm --prefix dashboard run build",
+    "dashboard:start": "npm --prefix dashboard run start"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

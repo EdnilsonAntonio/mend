@@ -251,6 +251,8 @@ Branch, commit, PR via Octokit, with the diff and a reasoning summary in the bod
 
 ### Task 6.1 — List view
 
+**Status:** ✅ Done — see `plans/6.1.md`.
+
 All heal attempts, status badge, confidence, PR link, newest first.
 
 ### Task 6.2 — Detail view

@@ -20,9 +20,12 @@
     "playwright.verify.config.ts",
     "playwright.db.config.ts",
     "playwright.runner.config.ts",
+    "playwright.dashboard.config.ts",
     "tests/**/*.ts",
     "agent/**/*.ts",
     "db/**/*.ts",
-    "runner/**/*.ts"
+    "runner/**/*.ts",
+    "dashboard/lib/**/*.ts",
+    "dashboard/__tests__/**/*.ts"
   ]
 }

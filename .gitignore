@@ -5,3 +5,6 @@ playwright-report/
 blob-report/
 mend-tmp/
 .env
+dashboard/.next/
+dashboard/out/
+dashboard/*.tsbuildinfo

@@ -227,3 +227,7 @@ When PR delivery fails (API error), the row is settled as `needs_review`/`low` w
 
 - A `high`-confidence fix produces a `status = 'healed'`, `confidence = 'high'` row with a non-null `proposed_selector`.
 - Non-selector-drift failures (`classification = 'other'`) are counted in the run report but never inserted as `heal_attempts` rows. They are recorded in the classifier output, not the database.
+
+### Read access (dashboard)
+
+`dashboard/lib/attempts.ts` holds the only query the dashboard issues: a single bounded `SELECT` over `heal_attempts`, ordered `created_at DESC, id DESC`, limited to 200 rows. It deliberately does not select `transcript` — the list view has no use for it, and the column can reach 2 MB per row. The dashboard never writes: `db/repository.ts` remains the only writer of `test_runs` and `heal_attempts`.
