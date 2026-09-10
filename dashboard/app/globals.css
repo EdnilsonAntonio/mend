@@ -195,3 +195,127 @@ a {
 a:hover {
   text-decoration: underline;
 }
+
+.detail {
+  background-color: #fff;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 2rem;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.detail-back { margin-bottom: 1.5rem; }
+.detail-heading {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+.detail-section {
+  margin-top: 2rem;
+  padding-top: 2rem;
+  border-top: 1px solid #eee;
+}
+.detail-section h2 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+.kv {
+  display: grid;
+  grid-template-columns: minmax(150px, 1fr) 1fr;
+  gap: 1rem 1.5rem;
+  margin-bottom: 1rem;
+}
+.kv dt { font-weight: 600; color: #333; }
+.kv dd { margin: 0; word-break: break-all; }
+.note {
+  padding: 1rem;
+  background-color: #f0f8ff;
+  border-left: 4px solid #0066cc;
+  margin: 1rem 0;
+  font-size: 0.95rem;
+  color: #333;
+}
+.note-warning {
+  background-color: #fffbeb;
+  border-left-color: #f59e0b;
+}
+.clamp-note {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+  color: #666;
+  font-style: italic;
+}
+.pass { color: #166534; font-weight: 600; }
+.fail { color: #991b1b; font-weight: 600; }
+.block {
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 28rem;
+  overflow: auto;
+}
+.step {
+  margin-top: 1.5rem;
+  padding: 1rem;
+  background-color: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+.step-header {
+  margin: 0 0 1rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.step-index {
+  width: 2rem;
+  height: 2rem;
+  background-color: #f0f0f0;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.9rem;
+}
+.step-duration {
+  margin-left: auto;
+  font-size: 0.85rem;
+  color: #666;
+}
+.step-body { margin-top: 1rem; }
+.diff-table,
+.preview-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1rem 0;
+  font-size: 0.9rem;
+}
+.diff-table th, .diff-table td, .preview-table th, .preview-table td {
+  border: 1px solid #ddd;
+  padding: 0.5rem;
+  text-align: left;
+}
+.diff-table th, .preview-table th {
+  background-color: #f0f0f0;
+  font-weight: 600;
+}
+.preview-table { font-size: 0.85rem; }
+.diff-before { background-color: #ffe0e0; }
+.diff-after { background-color: #e0ffe0; }
+.reasons {
+  list-style: none;
+  padding: 0;
+  margin: 1rem 0;
+}
+.reason {
+  padding: 0.5rem 0 0.5rem 1.5rem;
+  position: relative;
+}
+.reason::before {
+  content: '•';
+  position: absolute;
+  left: 0;
+}

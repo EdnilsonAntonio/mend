@@ -257,6 +257,8 @@ All heal attempts, status badge, confidence, PR link, newest first.
 
 ### Task 6.2 — Detail view
 
+**Status:** ✅ Done — see `plans/6.2.md`.
+
 Transcript replay: DOM seen, selectors tried, match counts, test output per step.
 
 **Acceptance criteria:**

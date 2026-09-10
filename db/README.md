@@ -231,3 +231,5 @@ When PR delivery fails (API error), the row is settled as `needs_review`/`low` w
 ### Read access (dashboard)
 
 `dashboard/lib/attempts.ts` holds the only query the dashboard issues: a single bounded `SELECT` over `heal_attempts`, ordered `created_at DESC, id DESC`, limited to 200 rows. It deliberately does not select `transcript` — the list view has no use for it, and the column can reach 2 MB per row. The dashboard never writes: `db/repository.ts` remains the only writer of `test_runs` and `heal_attempts`.
+
+The detail route (`dashboard/app/attempts/[id]/page.tsx`) reads the `transcript` column only when a visitor requests a specific attempt by UUID. It issues a single-row primary-key `SELECT … WHERE id = $1 LIMIT 1`, only after validating the id as a UUID to avoid passing malformed input to SQL. The jsonb value is normalised defensively by `dashboard/lib/transcript.ts` so a malformed, partial, truncated, or entirely foreign transcript degrades gracefully in the UI (rendering "No transcript was recorded" or "The stored transcript does not match the expected shape") instead of failing the request. The dashboard never writes.

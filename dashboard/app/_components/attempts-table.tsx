@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { EMPTY_CELL, formatTimestamp, isSafePrUrl, prLinkLabel, shortId, truncate } from '../../lib/format';
 import type { AttemptsLoad } from '../../lib/attempts';
 import { summariseAttempts } from '../../lib/attempts';
@@ -71,7 +72,9 @@ export function AttemptsView({ load }: { readonly load: AttemptsLoad }) {
             const mainRow = (
               <tr key={row.id} data-testid="attempt-row" data-attempt-id={row.id}>
                 <td>
-                  <code className="mono">{shortId(row.id)}</code>
+                  <Link href={`/attempts/${row.id}`} data-testid="attempt-detail-link">
+                    <code className="mono">{shortId(row.id)}</code>
+                  </Link>
                 </td>
                 <td>{formatTimestamp(row.createdAt)}</td>
                 <td>

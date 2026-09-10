@@ -10,6 +10,14 @@ import {
   isSafePrUrl,
   prLinkLabel,
   redactConnectionUrls,
+  clampForDisplay,
+  toolLabel,
+  formatDuration,
+  formatJson,
+  matchCountLabel,
+  booleanLabel,
+  noPrExplanation,
+  EMPTY_CELL,
 } from '../lib/format';
 import { HEAL_STATUS_VALUES, HEAL_CONFIDENCE_VALUES } from '../lib/types';
 
@@ -85,4 +93,89 @@ test('redactConnectionUrls: redacts postgres URLs', () => {
 test('redactConnectionUrls: no secrets', () => {
   const result = redactConnectionUrls('no secrets here');
   expect(result).toBe('no secrets here');
+});
+
+test('clampForDisplay: exceeds limit', () => {
+  const result = clampForDisplay('abcdef', 3);
+  expect(result).toEqual({ text: 'abc', clamped: true, originalLength: 6 });
+});
+
+test('clampForDisplay: within limit', () => {
+  const result = clampForDisplay('abc', 10);
+  expect(result).toEqual({ text: 'abc', clamped: false, originalLength: 3 });
+});
+
+test('clampForDisplay: zero max chars', () => {
+  expect(clampForDisplay('abc', 0)).toEqual({ text: '', clamped: true, originalLength: 3 });
+  expect(clampForDisplay('', 0).clamped).toBe(false);
+});
+
+test('clampForDisplay: no ellipsis', () => {
+  expect(clampForDisplay('abcdef', 3).text).not.toContain('…');
+});
+
+test('toolLabel: known tools', () => {
+  expect(toolLabel('run_single_test')).toBe('Run single test');
+  expect(toolLabel('get_dom_snapshot')).toBe('DOM snapshot');
+  expect(toolLabel('query_selector')).toBe('Query selector');
+  expect(toolLabel('made_up')).toBe('made_up');
+  expect(toolLabel('')).toBe('');
+});
+
+test('formatDuration: null and negative', () => {
+  expect(formatDuration(null)).toBe(EMPTY_CELL);
+  expect(formatDuration(-1)).toBe(EMPTY_CELL);
+});
+
+test('formatDuration: milliseconds', () => {
+  expect(formatDuration(0)).toBe('0ms');
+  expect(formatDuration(999)).toBe('999ms');
+});
+
+test('formatDuration: seconds', () => {
+  expect(formatDuration(1500)).toBe('1.5s');
+});
+
+test('formatJson: valid object', () => {
+  const result = formatJson({ a: 1 });
+  expect(result).toContain('"a": 1');
+});
+
+test('formatJson: undefined', () => {
+  expect(formatJson(undefined)).toBe('undefined');
+});
+
+test('matchCountLabel: null and zero', () => {
+  expect(matchCountLabel(null)).toBe('not measured');
+  expect(matchCountLabel(0)).toBe('0 matches');
+});
+
+test('matchCountLabel: singular and plural', () => {
+  expect(matchCountLabel(1)).toBe('1 match');
+  expect(matchCountLabel(3)).toBe('3 matches');
+});
+
+test('booleanLabel: all cases', () => {
+  expect(booleanLabel(null)).toBe(EMPTY_CELL);
+  expect(booleanLabel(true)).toBe('yes');
+  expect(booleanLabel(false)).toBe('no');
+});
+
+test('noPrExplanation: all statuses distinct and non-empty', () => {
+  const healed = noPrExplanation('healed');
+  const needsReview = noPrExplanation('needs_review');
+  const failed = noPrExplanation('failed');
+  const investigating = noPrExplanation('investigating');
+
+  expect(healed).not.toBe('');
+  expect(needsReview).not.toBe('');
+  expect(failed).not.toBe('');
+  expect(investigating).not.toBe('');
+
+  const explanations = new Set([healed, needsReview, failed, investigating]);
+  expect(explanations.size).toBe(4);
+
+  [healed, needsReview, failed, investigating].forEach((exp) => {
+    expect(exp).not.toContain('merge');
+  });
 });

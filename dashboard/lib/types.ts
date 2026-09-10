@@ -37,3 +37,9 @@ export interface HealAttemptListRow {
   /** ISO 8601, UTC, as produced by Date#toISOString. */
   readonly createdAt: string;
 }
+
+/** One `heal_attempts` row as the detail view needs it: the list columns plus the raw jsonb. */
+export interface HealAttemptDetailRow extends HealAttemptListRow {
+  /** The `transcript` jsonb column, exactly as `pg` returned it. Never trusted; normalised. */
+  readonly transcript: unknown;
+}
