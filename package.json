@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "private": true,
   "description": "Self-healing Playwright E2E tests: an agent that repairs selector drift and verifies every fix by re-execution.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "engines": {
     "node": ">=18.17.0"
   },
