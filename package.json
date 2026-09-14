@@ -31,7 +31,9 @@
     "dashboard:install": "npm --prefix dashboard install",
     "dashboard:dev": "npm --prefix dashboard run dev",
     "dashboard:build": "npm --prefix dashboard run build",
-    "dashboard:start": "npm --prefix dashboard run start"
+    "dashboard:start": "npm --prefix dashboard run start",
+    "metrics": "tsx metrics/cli/metrics.cli.ts",
+    "test:metrics": "playwright test --config=playwright.metrics.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",

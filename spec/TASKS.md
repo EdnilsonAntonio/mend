@@ -271,6 +271,8 @@ Transcript replay: DOM seen, selectors tried, match counts, test output per step
 
 ### Task 7.1 — Metrics
 
+**Status:** ✅ Done — see `plans/7.1.md`.
+
 Heal rate, average tool calls, cost per heal, false-fix rate (must be 0).
 
 **Acceptance criteria:**
