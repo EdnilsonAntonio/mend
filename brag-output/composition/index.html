@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=1920, height=1080">
+    <title>Self-Healing E2E Tests — Brag</title>
+    <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
+    <style>
+      :root {
+        --font-display: -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        --font-mono: Monaco, "Courier New", monospace;
+        --bg: #f9f9f9;
+        --panel: #ffffff;
+        --border: #dddddd;
+        --text: #333333;
+        --text-soft: #666666;
+        --accent: #0066cc;
+        --green-bg: #dcfce7;
+        --green-fg: #166534;
+        --high-bg: #d1fae5;
+        --high-fg: #065f46;
+        --red-bg: #fee2e2;
+        --red-fg: #991b1b;
+        --none-bg: #e5e7eb;
+        --none-fg: #374151;
+        --diff-before: #ffe0e0;
+        --diff-after: #e0ffe0;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        background: var(--bg);
+        font-family: var(--font-display);
+        color: var(--text);
+      }
+
+      #root {
+        position: relative;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg);
+      }
+
+      .scene {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+      }
+
+      .badge {
+        display: inline-block;
+        padding: 16px 28px;
+        border-radius: 8px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        font-size: 30px;
+        font-family: var(--font-display);
+      }
+      .badge-failed { background: var(--red-bg); color: var(--red-fg); }
+      .badge-healed { background: var(--green-bg); color: var(--green-fg); }
+      .badge-high { background: var(--high-bg); color: var(--high-fg); }
+      .badge-none { background: var(--none-bg); color: var(--none-fg); }
+
+      .mono {
+        font-family: var(--font-mono);
+      }
+
+      /* ---------- Scene 1 ---------- */
+      #scene1 .s1-row {
+        display: flex;
+        align-items: center;
+        gap: 40px;
+      }
+      #s1-selector {
+        font-family: var(--font-mono);
+        font-size: 84px;
+        font-weight: 600;
+        color: var(--text);
+        text-decoration: line-through;
+        text-decoration-color: var(--red-fg);
+        text-decoration-thickness: 6px;
+        opacity: 0;
+        display: inline-block;
+      }
+      #s1-badge {
+        opacity: 0;
+        display: inline-block;
+      }
+
+      /* ---------- Scene 2 ---------- */
+      #s2-panel {
+        width: 1500px;
+        background: var(--panel);
+        border: 2px solid var(--border);
+        border-radius: 16px;
+        padding: 64px 72px;
+        opacity: 0;
+      }
+      .s2-line {
+        font-family: var(--font-mono);
+        font-size: 34px;
+        color: var(--text);
+        margin: 0 0 22px 0;
+        opacity: 0;
+        display: block;
+      }
+      .s2-line .prompt {
+        color: var(--accent);
+        margin-right: 18px;
+      }
+      #s2-diff {
+        display: flex;
+        gap: 16px;
+        margin: 30px 0;
+        opacity: 0;
+      }
+      .s2-diff-cell {
+        flex: 1;
+        padding: 20px 28px;
+        border-radius: 8px;
+        font-family: var(--font-mono);
+        font-size: 30px;
+      }
+      .s2-diff-before { background: var(--diff-before); }
+      .s2-diff-after { background: var(--diff-after); }
+      .s2-diff-label {
+        display: block;
+        font-family: var(--font-display);
+        font-size: 20px;
+        color: var(--text-soft);
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 10px;
+      }
+      #s2-verify {
+        display: flex;
+        gap: 64px;
+        margin-top: 34px;
+        opacity: 0;
+      }
+      .s2-verify-item dt {
+        font-family: var(--font-display);
+        font-size: 22px;
+        color: var(--text-soft);
+        font-weight: 600;
+        margin-bottom: 8px;
+      }
+      .s2-verify-item dd {
+        margin: 0;
+        font-family: var(--font-display);
+        font-size: 36px;
+        font-weight: 700;
+        color: var(--green-fg);
+      }
+      #s2-terminal {
+        margin-top: 30px;
+        background: #f0f0f0;
+        border-radius: 8px;
+        padding: 20px 26px;
+        font-family: var(--font-mono);
+        font-size: 26px;
+        color: var(--text);
+        opacity: 0;
+      }
+
+      /* ---------- Scene 3 ---------- */
+      #s3-wrap {
+        width: 1560px;
+        opacity: 0;
+      }
+      .s3-row {
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        padding: 20px 0;
+        border-bottom: 1px solid var(--border);
+        opacity: 0;
+      }
+      .s3-row .mono {
+        font-size: 30px;
+        color: var(--text);
+        flex: 1;
+      }
+      .s3-caption {
+        margin-top: 30px;
+        font-size: 30px;
+        color: var(--text-soft);
+        font-style: italic;
+        opacity: 0;
+      }
+
+      /* ---------- Scene 4 ---------- */
+      #scene4 {
+        flex-direction: column;
+      }
+      #s4-wordmark {
+        font-size: 96px;
+        font-weight: 700;
+        color: var(--text);
+        margin: 0;
+        opacity: 0;
+      }
+      #s4-tagline {
+        font-size: 44px;
+        color: var(--text-soft);
+        margin: 24px 0 0 0;
+        opacity: 0;
+      }
+      #s4-final {
+        font-size: 30px;
+        color: var(--text-soft);
+        margin: 44px 0 0 0;
+        opacity: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <div data-hf-id="hf-hqjw" id="root" data-composition-id="mend-brag" data-start="0" data-width="1920" data-height="1080" data-duration="20" data-fps="30">
+      <!-- Scene 1: The break (0-4s) -->
+      <section data-hf-id="hf-91xl" id="scene1" class="clip scene" data-start="0" data-duration="4">
+        <div data-hf-id="hf-6enb" class="s1-row">
+          <span data-hf-id="hf-jid2" id="s1-selector" class="mono">.add-to-cart</span>
+          <span data-hf-id="hf-0hfe" id="s1-badge" class="badge badge-failed">Failed</span>
+        </div>
+      </section>
+
+      <!-- Scene 2: Investigate, then verify (4-11s) -->
+      <section data-hf-id="hf-5f77" id="scene2" class="clip scene" data-start="4" data-duration="7">
+        <div data-hf-id="hf-26cn" id="s2-panel">
+          <p data-hf-id="hf-zuqf" class="s2-line mono" id="s2-l1"><span data-hf-id="hf-2h4f" class="prompt">›</span>get_dom_snapshot</p>
+          <p data-hf-id="hf-62ts" class="s2-line mono" id="s2-l2"><span data-hf-id="hf-utlb" class="prompt">›</span>query_selector</p>
+          <p data-hf-id="hf-y76o" class="s2-line mono" id="s2-l3"><span data-hf-id="hf-ufaa" class="prompt">›</span>run_single_test</p>
+
+          <div data-hf-id="hf-paie" id="s2-diff">
+            <div data-hf-id="hf-grpl" class="s2-diff-cell s2-diff-before">
+              <span data-hf-id="hf-vq6x" class="s2-diff-label">Original selector</span>
+              <span data-hf-id="hf-ppqm" class="mono">.add-to-cart</span>
+            </div>
+            <div data-hf-id="hf-8ciu" class="s2-diff-cell s2-diff-after">
+              <span data-hf-id="hf-aa6m" class="s2-diff-label">Proposed selector</span>
+              <span data-hf-id="hf-x5gw" class="mono">.purchase-button</span>
+            </div>
+          </div>
+
+          <dl data-hf-id="hf-2os5" id="s2-verify">
+            <div data-hf-id="hf-s4mx" class="s2-verify-item">
+              <dt data-hf-id="hf-3q50">Executed</dt>
+              <dd data-hf-id="hf-rv64" id="s2-executed">yes</dd>
+            </div>
+            <div data-hf-id="hf-1utp" class="s2-verify-item">
+              <dt data-hf-id="hf-u5tl">Passed</dt>
+              <dd data-hf-id="hf-n9ql" id="s2-passed">yes</dd>
+            </div>
+          </dl>
+
+          <div data-hf-id="hf-7lda" id="s2-terminal" class="mono">1 passed (1.1s)</div>
+        </div>
+      </section>
+
+      <!-- Scene 3: The honest dashboard (11-17s) -->
+      <section data-hf-id="hf-juer" id="scene3" class="clip scene" data-start="11" data-duration="6">
+        <div data-hf-id="hf-a77g" id="s3-wrap">
+          <div data-hf-id="hf-r27t" class="s3-row" id="s3-r1">
+            <span data-hf-id="hf-dqn6" class="badge badge-healed">Healed</span>
+            <span data-hf-id="hf-tbhw" class="badge badge-high">High</span>
+            <span data-hf-id="hf-gcp4" class="mono">.add-to-cart → .purchase-button</span>
+          </div>
+          <div data-hf-id="hf-v0bu" class="s3-row" id="s3-r2">
+            <span data-hf-id="hf-a58m" class="badge badge-healed">Healed</span>
+            <span data-hf-id="hf-ueto" class="badge badge-high">High</span>
+            <span data-hf-id="hf-fw7d" class="mono">#login-btn → #signin-button</span>
+          </div>
+          <div data-hf-id="hf-yyfv" class="s3-row" id="s3-r3">
+            <span data-hf-id="hf-ajjn" class="badge badge-healed">Healed</span>
+            <span data-hf-id="hf-t7wl" class="badge badge-high">High</span>
+            <span data-hf-id="hf-ufwt" class="mono">button:has-text('Sign In') → button:has-text('Log In')</span>
+          </div>
+          <div data-hf-id="hf-bgyc" class="s3-row" id="s3-r4">
+            <span data-hf-id="hf-axuo" class="badge badge-healed">Healed</span>
+            <span data-hf-id="hf-tm7m" class="badge badge-high">High</span>
+            <span data-hf-id="hf-h7ac" class="mono">#product-card → .product-card__price</span>
+          </div>
+          <div data-hf-id="hf-c8m5" class="s3-row" id="s3-r5">
+            <span data-hf-id="hf-xef2" class="badge badge-failed">Failed</span>
+            <span data-hf-id="hf-ybfs" class="badge badge-none">None</span>
+            <span data-hf-id="hf-lv19" class="mono">#remember-me → —</span>
+          </div>
+          <p data-hf-id="hf-jtk8" class="s3-caption" id="s3-caption">4 healed. 1 told the truth.</p>
+        </div>
+      </section>
+
+      <!-- Scene 4: Outro (17-20s) -->
+      <section data-hf-id="hf-iwqn" id="scene4" class="clip scene" data-start="17" data-duration="3">
+        <h1 data-hf-id="hf-qoa2" id="s4-wordmark">Self-Healing E2E Tests</h1>
+        <p data-hf-id="hf-yxyj" id="s4-tagline">Verified by execution. Not vibes.</p>
+        <p data-hf-id="hf-8u4n" id="s4-final">A human still merges.</p>
+      </section>
+
+      <!-- Audio -->
+      <audio data-hf-id="hf-aui2" id="bgm" src="assets/music/happy-beats-business-moves-vol-12-by-ende-dot-app.mp3" data-start="0" data-duration="20" data-track-index="10" data-volume="1"></audio>
+
+      <audio data-hf-id="hf-ku5i" id="sfx-thud" src="assets/sfx/impact/impactSoft_medium_001.ogg" data-start="0.3" data-duration="1" data-track-index="11" data-volume="0.75"></audio>
+
+      <audio data-hf-id="hf-slw5" id="sfx-key1" src="assets/sfx/keyboard/keypress-001.wav" data-start="4.6" data-duration="0.5" data-track-index="12" data-volume="0.6"></audio>
+      <audio data-hf-id="hf-l154" id="sfx-key2" src="assets/sfx/keyboard/keypress-002.wav" data-start="5.3" data-duration="0.5" data-track-index="13" data-volume="0.6"></audio>
+      <audio data-hf-id="hf-gucb" id="sfx-key3" src="assets/sfx/keyboard/keypress-003.wav" data-start="6.0" data-duration="0.5" data-track-index="14" data-volume="0.6"></audio>
+      <audio data-hf-id="hf-nc8j" id="sfx-confirm" src="assets/sfx/interface/bong_001.ogg" data-start="8.74" data-duration="1.2" data-track-index="15" data-volume="0.65"></audio>
+
+      <audio data-hf-id="hf-bgus" id="sfx-row1" src="assets/sfx/interface/drop_001.ogg" data-start="11.3" data-duration="0.6" data-track-index="16" data-volume="0.6"></audio>
+      <audio data-hf-id="hf-z8pn" id="sfx-row2" src="assets/sfx/interface/drop_002.ogg" data-start="11.85" data-duration="0.6" data-track-index="17" data-volume="0.6"></audio>
+      <audio data-hf-id="hf-be36" id="sfx-row3" src="assets/sfx/interface/drop_003.ogg" data-start="12.4" data-duration="0.6" data-track-index="18" data-volume="0.6"></audio>
+      <audio data-hf-id="hf-kqqq" id="sfx-row4" src="assets/sfx/interface/drop_001.ogg" data-start="12.95" data-duration="0.6" data-track-index="19" data-volume="0.6"></audio>
+      <audio data-hf-id="hf-0kp9" id="sfx-row5" src="assets/sfx/impact/impactWood_medium_000.ogg" data-start="14.0" data-duration="0.8" data-track-index="20" data-volume="0.55"></audio>
+
+      <audio data-hf-id="hf-dn6h" id="sfx-final" src="assets/sfx/interface/click_001.ogg" data-start="18.3" data-duration="0.6" data-track-index="21" data-volume="0.55"></audio>
+    </div>
+
+    <script>
+      document.fonts.ready.then(() => {
+        const tl = gsap.timeline({ paused: true, defaults: { ease: "power2.out" } });
+
+        // ---------- Scene 1: The break (global 0-4s) ----------
+        tl.fromTo("#s1-selector", { scale: 0.94 }, { scale: 1, opacity: 1, duration: 0.25, ease: "power2.out" }, 0.1);
+        tl.fromTo("#s1-badge", { scale: 0.6 }, { scale: 1, opacity: 1, duration: 0.22, ease: "back.out(2.2)" }, 0.4);
+
+        // ---------- Scene 2: Investigate, then verify (global 4-11s) ----------
+        tl.fromTo("#s2-panel", { y: 24 }, { y: 0, opacity: 1, duration: 0.3 }, 4.0);
+
+        tl.fromTo("#s2-l1", { x: -14 }, { x: 0, opacity: 1, duration: 0.25 }, 4.6);
+        tl.fromTo("#s2-l2", { x: -14 }, { x: 0, opacity: 1, duration: 0.25 }, 5.3);
+        tl.fromTo("#s2-l3", { x: -14 }, { x: 0, opacity: 1, duration: 0.25 }, 6.0);
+
+        tl.fromTo("#s2-diff", { y: 12 }, { y: 0, opacity: 1, duration: 0.3 }, 7.2);
+
+        // beat-locked: 8.74s (strong_beat, vol-12 preset)
+        tl.fromTo(
+          ["#s2-executed", "#s2-passed"],
+          { y: 8 },
+          { y: 0, opacity: 1, duration: 0.3, stagger: 0.05 },
+          8.74
+        );
+        tl.fromTo("#s2-terminal", { y: 8 }, { y: 0, opacity: 1, duration: 0.25 }, 9.05);
+
+        // soft crossfade exit
+        tl.to("#s2-panel", { opacity: 0, duration: 0.4 }, 10.6);
+
+        // ---------- Scene 3: The honest dashboard (global 11-17s) ----------
+        tl.to("#s3-wrap", { opacity: 1, duration: 0.2 }, 11.0);
+
+        tl.fromTo("#s3-r1", { x: -18 }, { x: 0, opacity: 1, duration: 0.25 }, 11.3);
+        tl.fromTo("#s3-r2", { x: -18 }, { x: 0, opacity: 1, duration: 0.25 }, 11.85);
+        tl.fromTo("#s3-r3", { x: -18 }, { x: 0, opacity: 1, duration: 0.25 }, 12.4);
+        tl.fromTo("#s3-r4", { x: -18 }, { x: 0, opacity: 1, duration: 0.25 }, 12.95);
+        // deliberate longer pause before the honest row
+        tl.fromTo("#s3-r5", { x: -18 }, { x: 0, opacity: 1, duration: 0.25 }, 14.0);
+
+        tl.to("#s3-caption", { opacity: 1, duration: 0.3 }, 14.4);
+
+        // soft crossfade exit
+        tl.to("#s3-wrap", { opacity: 0, duration: 0.4 }, 16.5);
+
+        // ---------- Scene 4: Outro (global 17-20s) ----------
+        tl.fromTo("#s4-wordmark", { y: 14 }, { y: 0, opacity: 1, duration: 0.3 }, 17.2);
+        tl.fromTo("#s4-tagline", { y: 10 }, { y: 0, opacity: 1, duration: 0.3 }, 17.45);
+        tl.fromTo("#s4-final", { y: 8 }, { y: 0, opacity: 1, duration: 0.3 }, 18.3);
+
+        // ---------- Music arc ----------
+        tl.fromTo("#bgm", { volume: 0 }, { volume: 0.32, duration: 1.2 }, 0);
+        tl.to("#bgm", { volume: 0.4, duration: 1.0 }, 11.0);
+        tl.to("#bgm", { volume: 0, duration: 1.5 }, 18.3);
+
+        window.__timelines["mend-brag"] = tl;
+      });
+    </script>
+  </body>
+</html>

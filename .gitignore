@@ -10,3 +10,4 @@ mend-tmp/
 dashboard/.next/
 dashboard/out/
 dashboard/*.tsbuildinfo
+brag-output/composition/.thumbnails/

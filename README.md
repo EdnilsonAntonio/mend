@@ -3,7 +3,11 @@
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Node](https://img.shields.io/badge/node-%3E%3D18.17.0-339933?logo=node.js&logoColor=white)](package.json)
 [![Playwright](https://img.shields.io/badge/tested%20with-Playwright-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev)
-[![Status](https://img.shields.io/badge/status-6%2F7%20phases%20shipped-orange)](spec/TASKS.md)
+[![Status](https://img.shields.io/badge/status-7%2F7%20phases%20shipped-brightgreen)](spec/TASKS.md)
+
+<p align="center">
+  <img src="docs/media/hero-card.jpg" alt="Self-Healing E2E Tests — Verified by execution. Not vibes. A human still merges." width="760">
+</p>
 
 A CI-oriented tool that repairs Playwright end-to-end tests broken by **selector
 drift** — a renamed `id`/class, a restructured DOM, changed text. An OpenAI
@@ -29,17 +33,12 @@ exactly that failure mode — not application bugs, not flaky timeouts, just dri
 
 ## See it in action
 
-**List view** — every heal attempt, its confidence, and the exact selector change:
+![Mend healing a broken selector, end to end](docs/media/mend-demo.gif)
 
-![Dashboard list view](docs/images/dashboard-list.png)
+*A full run: breakage seeded, the agent investigates and verifies a fix by
+re-executing the test, and the dashboard replays exactly what it saw and did.*
 
-**Detail view** — the verification re-run and the confidence gate, both computed
-from observed signals, not the model's self-reported certainty:
-
-![Dashboard detail view](docs/images/dashboard-detail.png)
-
-*(Real output from a local run: 5 seeded breakage scenarios in, 4 healed at high
-confidence, 1 correctly reported as unfixable — see [Quickstart](#quickstart-see-a-heal-happen).)*
+📹 [Watch the full-quality version with audio](docs/media/mend-demo.mp4)
 
 ## How a heal happens
 
@@ -199,7 +198,7 @@ the least risky one.
 | 4 — Persistence | PostgreSQL schema/migrations, persisted runs and attempts | ✅ Done |
 | 5 — Delivery | GitHub PR creation via Octokit | ✅ Done |
 | 6 — Dashboard | Next.js list/detail views | ✅ Done |
-| 7 — Evidence | Heal-rate and cost metrics | ⬜ In progress |
+| 7 — Evidence | Heal-rate and cost metrics | ✅ Done |
 
 ## Explicitly out of scope
 

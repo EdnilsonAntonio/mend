@@ -1,0 +1,1 @@
+Most AI agents tell you they're confident. This one has to prove it — it re-runs your test and watches it pass before it believes itself. Self-healing E2E tests, verified by execution, not vibes.
