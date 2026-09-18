@@ -13,7 +13,9 @@ docker run --rm -d --name mend-pg -p 5433:5432 \
   postgres:16
 ```
 
-Then export the connection string:
+Then put the connection string in the repository `.env` (see the root `README.md` §
+Setup) — every `npm run` script that needs it loads that file automatically. To use it
+in an ad-hoc shell command such as `psql`, export it too:
 
 ```bash
 export DATABASE_URL=postgres://postgres:mend@localhost:5433/mend
@@ -24,6 +26,10 @@ For integration tests, use the same instance and also export:
 ```bash
 export MEND_TEST_DATABASE_URL=postgres://postgres:mend@localhost:5433/mend
 ```
+
+`MEND_TEST_DATABASE_URL` is deliberately **not** loaded from `.env` by the test
+scripts: whether the integration suites run should be an explicit choice, not a side
+effect of an untracked file.
 
 ## Commands
 

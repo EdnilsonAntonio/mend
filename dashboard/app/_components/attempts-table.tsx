@@ -9,7 +9,7 @@ export function AttemptsView({ load }: { readonly load: AttemptsLoad }) {
   if (load.ok === false) {
     const codeMessage =
       load.code === 'no-database-url'
-        ? 'Set DATABASE_URL to the PostgreSQL instance the runner writes to, then reload. See db/README.md.'
+        ? 'Set DATABASE_URL in dashboard/.env.local (copy dashboard/.env.local.example), then reload. See dashboard/README.md.'
         : 'The database is unreachable or has not been migrated. Run npm run db:migrate, then reload.';
 
     return (

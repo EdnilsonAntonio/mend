@@ -22,7 +22,7 @@ import {
 import type { AttemptDetailLoad } from '../../lib/attempt-detail';
 
 const codeMessages: Record<string, string> = {
-  'no-database-url': 'Set DATABASE_URL to the PostgreSQL instance the runner writes to, then reload. See db/README.md.',
+  'no-database-url': 'Set DATABASE_URL in dashboard/.env.local (copy dashboard/.env.local.example), then reload. See dashboard/README.md.',
   'invalid-id': 'That is not a valid heal attempt id. Attempt ids are UUIDs, as shown on the list view.',
   'not-found': 'No heal attempt with that id is recorded. It may belong to a different database.',
   'query-failed': 'The database is unreachable or has not been migrated. Run npm run db:migrate, then reload.',

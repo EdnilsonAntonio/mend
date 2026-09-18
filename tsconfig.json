@@ -22,12 +22,14 @@
     "playwright.runner.config.ts",
     "playwright.dashboard.config.ts",
     "playwright.metrics.config.ts",
+    "playwright.scripts.config.ts",
     "tests/**/*.ts",
     "agent/**/*.ts",
     "db/**/*.ts",
     "runner/**/*.ts",
     "dashboard/lib/**/*.ts",
     "dashboard/__tests__/**/*.ts",
-    "metrics/**/*.ts"
+    "metrics/**/*.ts",
+    "scripts/**/*.ts"
   ]
 }

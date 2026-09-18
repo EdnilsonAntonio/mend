@@ -321,7 +321,7 @@ exactly that is a real defect, not a rough edge.
 
 ### Task 8.2 — Close the repeated `.env`-not-loaded failure mode
 
-**Status:** ⬜ Not started.
+**Status:** ✅ Done — see `plans/8.2.md`.
 
 The current setup requires `set -a && source .env && set +a` to be re-run in **every**
 new terminal, for every one of: root `tsx` scripts, `npm run heal`, and the dashboard.

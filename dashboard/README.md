@@ -33,15 +33,36 @@ Note: `dashboard/` is its own npm package with its own `package-lock.json`. The 
 
 ## Environment
 
+The dashboard is its own Next.js app with its own environment file. It does **not**
+read the repository root `.env`.
+
+```bash
+cp dashboard/.env.local.example dashboard/.env.local   # from the repo root
+```
+
+Next.js loads `dashboard/.env.local` automatically for `next dev`, `next build`, and
+`next start`, because `npm run dashboard:dev` runs `next` with `dashboard/` as its
+working directory. **No `export` and no `source` step is required, in any terminal.**
+
+`.env.local` is git-ignored; `dashboard/.env.local.example` is the checked-in template.
+
 ### `DATABASE_URL`
 
-PostgreSQL connection string pointing to the database the runner writes to. Example:
+PostgreSQL connection string pointing to the database the runner writes to — the same
+value as the root `.env`. Example:
 
 ```
 postgres://postgres:mend@localhost:5433/mend
 ```
 
-When `DATABASE_URL` is unset, the dashboard renders a help panel instead of crashing. The connection string is never printed: pg error messages pass through `redactConnectionUrls` to strip usernames and passwords.
+**Precedence:** a `DATABASE_URL` already present in the environment — for example
+exported by [`direnv`](https://direnv.net/) from the root `.env`, see the root
+[`README.md`](../README.md) — takes priority, because Next.js never overwrites a
+variable that is already set. If you use `direnv`, `dashboard/.env.local` is optional.
+
+When `DATABASE_URL` is unset, the dashboard renders a help panel instead of crashing.
+The connection string is never printed: pg error messages pass through
+`redactConnectionUrls` to strip usernames and passwords.
 
 ## Tests
 

@@ -7,6 +7,7 @@ mend-tmp/
 .env
 .env.*
 !.env.example
+!.env.local.example
 dashboard/.next/
 dashboard/out/
 dashboard/*.tsbuildinfo

@@ -101,34 +101,65 @@ Components read PostgreSQL directly) · GitHub REST API via Octokit for PR creat
 
 ## Setup
 
+Install dependencies for the root package and the dashboard:
+
 ```bash
 npm install
 npm run dashboard:install
 ```
 
-Copy the example env file and fill in your own values:
+Create your environment files from the checked-in examples:
 
 ```bash
 cp .env.example .env
+cp dashboard/.env.local.example dashboard/.env.local
 ```
+
+Fill in `.env` with your own values:
 
 ```
 DATABASE_URL=postgres://postgres:mend@localhost:5433/mend
 OPENAI_API_KEY=sk-...
 ```
 
-**`.env` is never read automatically** — `tsx`-run scripts, `heal`, and the test
-suites only read `process.env`, so load the file into your shell before running
-anything:
+`dashboard/.env.local` needs only `DATABASE_URL`, pointing at the same database —
+Next.js loads that file on its own (see [`dashboard/README.md`](dashboard/README.md)).
+
+### Recommended: let `direnv` load your environment
+
+[`direnv`](https://direnv.net/) exports `.env` into **every** shell you open in this
+repository — so `DATABASE_URL` and `OPENAI_API_KEY` are simply always there: for npm
+scripts, for ad-hoc `npx tsx …` commands, for `psql`, and for the dashboard. This
+repo ships a `.envrc` that does exactly that and nothing else.
+
+```bash
+brew install direnv                 # macOS; see direnv.net for other platforms
+eval "$(direnv hook zsh)"           # add this line to ~/.zshrc (or ~/.bashrc)
+direnv allow                        # once, from the repo root
+```
+
+With `direnv` active you can skip `dashboard/.env.local` entirely — the dashboard
+inherits `DATABASE_URL` from the shell.
+
+### Fallback: load `.env` by hand
+
+Don't want another tool? You don't need one. Every `npm run` script that needs
+`DATABASE_URL` or `OPENAI_API_KEY` already loads `.env` for you (via
+`scripts/with-env.mjs`), so the Quickstart below works in any fresh terminal as-is.
+
+The only commands that still need help are ones you run *outside* an npm script — a
+direct `npx tsx …`, or `psql "$DATABASE_URL"`:
 
 ```bash
 set -a && source .env && set +a
 ```
 
-(or use a tool like [`direnv`](https://direnv.net/) to do this for you). The
-dashboard is a separate Next.js app and does **not** read the root `.env` either —
-export the same variables in the shell you launch it from, or see
-[`dashboard/README.md`](dashboard/README.md).
+That has to be repeated in every new terminal, which is exactly the papercut
+`direnv` removes.
+
+**Precedence, in one line:** a variable already set in your shell always wins;
+otherwise `.env` supplies it (root scripts), or `dashboard/.env.local` does (the
+dashboard).
 
 Apply the database schema:
 
@@ -167,8 +198,8 @@ Restore the app to pristine when done:
 npm run break:off
 ```
 
-To have `npm run heal` open pull requests for high-confidence fixes, also set
-`GITHUB_TOKEN` and `GITHUB_REPOSITORY` — see [`runner/README.md`](runner/README.md).
+To have `npm run heal` open pull requests for high-confidence fixes, also fill in
+`GITHUB_TOKEN` and `GITHUB_REPOSITORY` in `.env` — see [`runner/README.md`](runner/README.md).
 
 ## Repository layout
 
