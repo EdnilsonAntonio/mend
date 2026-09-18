@@ -167,6 +167,9 @@ Apply the database schema:
 npm run db:migrate
 ```
 
+If that command prints an error instead of `Applied N migrations …`, see
+[Troubleshooting](#troubleshooting).
+
 ## Quickstart: see a heal happen
 
 The app under test starts pristine (all tests pass), so there is nothing to heal
@@ -178,6 +181,10 @@ npm run break:on      # terminal 2 — toggles the 5 seeded breakage scenarios o
 npm run test:e2e      # now 5 tests fail, writing test-results/results.json
 npm run heal          # reads those failures, heals what it can, persists to PostgreSQL
 ```
+
+Hit an issue? See [Troubleshooting](#troubleshooting) — it lists the exact
+messages these commands print when something is missing, and the one command
+that fixes each.
 
 Then, in another terminal:
 
@@ -200,6 +207,122 @@ npm run break:off
 
 To have `npm run heal` open pull requests for high-confidence fixes, also fill in
 `GITHUB_TOKEN` and `GITHUB_REPOSITORY` in `.env` — see [`runner/README.md`](runner/README.md).
+
+## Troubleshooting
+
+Every entry below is something that actually went wrong during a cold-clone run of
+this README. Symptom, cause, fix — in that order.
+
+### `npm run db:migrate` exits with no output
+
+**Cause:** A real defect — the migration CLI swallowed connection errors. It is fixed:
+`db:migrate` now always prints a headline, the connection target, the underlying
+cause, and a hint before exiting non-zero.
+
+**Fix:** If you still get a silent exit, your checkout predates the fix. Update it:
+
+```bash
+git pull
+npm install
+```
+
+The message it prints from then on is decoded by the next two entries.
+
+### `npm run db:migrate` prints `Could not reach DATABASE_URL — is Postgres running and is the database created?`
+
+**Cause:** Nothing is listening on the host and port in your `DATABASE_URL` — usually
+Postgres simply isn't running.
+
+**Fix:** Start the local container, then re-run the migration:
+
+```bash
+docker run --rm -d --name mend-pg -p 5433:5432 \
+  -e POSTGRES_PASSWORD=mend \
+  -e POSTGRES_DB=mend \
+  postgres:16
+npm run db:migrate
+```
+
+The `target:` line in that error shows the host, port, database, and user it actually
+tried (never the password) — check them against `.env`.
+
+### `npm run db:migrate` prints `Reached the Postgres server, but database "mend" does not exist.`
+
+**Cause:** The server is up, but the database named at the end of `DATABASE_URL` was
+never created.
+
+**Fix:** Create it, then re-run the migration:
+
+```bash
+psql "postgres://postgres:mend@localhost:5433/postgres" -c 'CREATE DATABASE mend'
+npm run db:migrate
+```
+
+### `npm run heal` prints `DATABASE_URL is not set; export it before running npm run heal`
+
+**Cause:** There is no `.env` at the repository root, or its `DATABASE_URL` line is
+empty. The npm scripts load `.env` for you — they cannot invent it.
+
+**Fix:** Create `.env` from the template (skip the copy if you already have one), fill
+in `DATABASE_URL`, then confirm it is being picked up:
+
+```bash
+cp .env.example .env
+MEND_ENV_DEBUG=1 npm run db:migrate:status   # prints "with-env: applied N variable(s) …"
+```
+
+### `npm run heal` prints `OPENAI_API_KEY is not set; export it before running a heal`
+
+**Cause:** Same as above — the `OPENAI_API_KEY` line in `.env` is empty.
+
+**Fix:** Put a real key in `.env`:
+
+```
+OPENAI_API_KEY=sk-...
+```
+
+### Every heal attempt comes back `failed`, including scenarios that should heal
+
+**Cause:** `OPENAI_API_KEY` is still the `.env.example` placeholder (`sk-your-key-here`),
+or is otherwise invalid — every OpenAI call is rejected with a 401 before the agent
+gets as far as investigating. Tell-tale: every `[settled]` line reports `toolCalls=0`,
+and the attempt's detail page shows stop reason `model-error`.
+
+**Fix:** Replace the placeholder in `.env` with a real key, then re-run (Scenario 5,
+the genuinely removed element, is *expected* to still fail — that's by design):
+
+```bash
+npm run heal
+```
+
+### The dashboard shows "Set `DATABASE_URL` in `dashboard/.env.local` … then reload."
+
+**Cause:** The dashboard is a separate Next.js app and reads its own
+`dashboard/.env.local`, not the repository root `.env`.
+
+**Fix:** Create it from the template and fill in the same `DATABASE_URL`:
+
+```bash
+cp dashboard/.env.local.example dashboard/.env.local
+```
+
+`next dev` picks the new file up on its own — reload the page, no `export` and no
+restart. (With `direnv` active, the dashboard inherits `DATABASE_URL` from your shell
+and this file is optional.)
+
+### The dashboard shows "The database is unreachable or has not been migrated."
+
+**Cause:** `DATABASE_URL` is set, but the database cannot be reached or the schema was
+never created.
+
+**Fix:** Check what the database actually has, then migrate:
+
+```bash
+npm run db:migrate:status
+npm run db:migrate
+```
+
+If `db:migrate` itself fails, the first three entries above decode its message.
 
 ## Repository layout
 

@@ -345,7 +345,7 @@ this is a real gap, not a one-off mistake.
 
 ### Task 8.3 — Add a Troubleshooting section to the README
 
-**Status:** ⬜ Not started.
+**Status:** ✅ Done — see `plans/8.3.md`.
 
 Turn the friction actually hit during the fresh-clone test into documentation, so the
 next person hits a known answer instead of a dead end.
