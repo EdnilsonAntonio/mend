@@ -12,6 +12,8 @@ import {
   applySearchPath,
   assertSupportedServerVersion,
   createDbClient,
+  connectDbClient,
+  closeDbClientQuietly,
 } from './client.js';
 
 export interface MigrateOptions {
@@ -83,7 +85,7 @@ export async function applyMigrations(options: MigrateOptions): Promise<MigrateR
   let serverVersionNum: number;
 
   try {
-    await client.connect();
+    await connectDbClient(client, options.connectionString);
 
     // Step 4: Assert server version.
     serverVersionNum = await assertSupportedServerVersion(client);
@@ -186,17 +188,26 @@ export async function applyMigrations(options: MigrateOptions): Promise<MigrateR
       return report;
     } finally {
       // Release advisory lock.
-      await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_ADVISORY_LOCK_ID]);
+      try {
+        await client.query('SELECT pg_advisory_unlock($1)', [MIGRATION_ADVISORY_LOCK_ID]);
+      } catch {
+        // A dead connection must not mask the real error.
+      }
     }
   } finally {
     // Always close the client.
-    await client.end();
+    await closeDbClientQuietly(client);
   }
 }
 
 export async function getMigrationStatus(options: MigrateOptions): Promise<MigrationStatus> {
   const schema = options.schema ?? DEFAULT_MIGRATION_SCHEMA;
   const migrationsDir = options.migrationsDir ?? MIGRATIONS_DIR;
+
+  // Step 1: Resolve connection string.
+  if (!options.connectionString || options.connectionString.trim() === '') {
+    throw new MigrationError('missing-connection-string', 'Connection string is empty');
+  }
 
   // Load files before connecting.
   const files = await loadMigrationFiles(migrationsDir);
@@ -205,7 +216,7 @@ export async function getMigrationStatus(options: MigrateOptions): Promise<Migra
   const client = createDbClient(options.connectionString);
 
   try {
-    await client.connect();
+    await connectDbClient(client, options.connectionString);
 
     // Assert version.
     await assertSupportedServerVersion(client);
@@ -247,6 +258,6 @@ export async function getMigrationStatus(options: MigrateOptions): Promise<Migra
       plan,
     };
   } finally {
-    await client.end();
+    await closeDbClientQuietly(client);
   }
 }

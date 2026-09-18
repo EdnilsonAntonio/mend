@@ -1,6 +1,14 @@
 import { applyMigrations, getMigrationStatus } from '../migrate.js';
 import { resolveDatabaseUrl } from '../client.js';
-import { MigrationError } from '../migration-files.js';
+import { describeError } from '../connection-errors.js';
+
+function fail(message: string, exitCode = 1): void {
+  const text = message.trim().length > 0
+    ? message
+    : 'Migration failed, but the error carried no message. Re-run with DATABASE_URL set to a reachable Postgres instance.';
+  console.error(text);
+  process.exitCode = exitCode;
+}
 
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
@@ -33,14 +41,15 @@ async function main(): Promise<void> {
       '   or: npm run db:migrate -- [--status] [--json] [--schema=<name>]',
     ];
     console.error(usage.join('\n'));
-    process.exit(2);
+    process.exitCode = 2;
+    return;
   }
 
   // Resolve database URL.
   const connectionString = resolveDatabaseUrl();
   if (!connectionString) {
-    console.error('DATABASE_URL is not set; export it before running migrations');
-    process.exit(1);
+    fail('DATABASE_URL is not set; export it before running migrations');
+    return;
   }
 
   try {
@@ -107,18 +116,20 @@ async function main(): Promise<void> {
         const skippedCount = report.alreadyApplied.length;
         const summaryLine = `migrate ok: applied=${appliedCount} skipped=${skippedCount} pending=0 (${report.durationMs}ms)`;
         console.log(summaryLine);
+
+        const summaryLineExtended = appliedCount === 0
+          ? `Applied 0 migrations to schema "${report.schema}" — already up to date (${skippedCount} already applied, ${report.durationMs}ms).`
+          : `Applied ${appliedCount} migration${appliedCount === 1 ? '' : 's'} to schema "${report.schema}" (${skippedCount} already applied, ${report.durationMs}ms).`;
+        console.log(summaryLineExtended);
       }
     }
-
-    process.exit(0);
   } catch (err) {
-    const message = err instanceof MigrationError ? err.message : (err instanceof Error ? err.message : String(err));
-    console.error(message);
-    process.exit(1);
+    fail(describeError(err));
+    return;
   }
 }
 
 main().catch((err) => {
-  console.error('Unexpected error:', err instanceof Error ? err.message : String(err));
-  process.exit(1);
+  console.error(`Unexpected error: ${describeError(err)}`);
+  process.exitCode = 1;
 });

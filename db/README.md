@@ -40,6 +40,18 @@ Applies all pending migrations to the configured schema. Requires `DATABASE_URL`
 - `1` — migration error (semantic or network issue)
 - `2` — usage error (invalid arguments)
 
+#### Connection failures
+
+On a connection failure, the CLI always prints:
+- A headline describing the kind of failure: `server-unreachable`, `host-not-found`, `database-missing`, `authentication-failed`, or `unknown`
+- A `target:` line with the connection target (host, port, database, user — never the password)
+- A `cause:` line with the underlying error
+- A `Hint:` line with an actionable next step
+
+The command always exits with a non-empty message; never exits silently.
+
+A successful migration run's final line is: `Applied N migrations to schema "<schema>" (…)`.
+
 ### Check migration status
 
 ```bash
@@ -91,7 +103,8 @@ PostgreSQL connection string for applying migrations. Example:
 postgres://postgres:mend@localhost:5433/mend
 ```
 
-The connection string is never logged or printed.
+The connection string is never printed. On a connection failure the CLI prints only the
+host, port, database, and user parsed from `DATABASE_URL` — never the password.
 
 ### `MEND_TEST_DATABASE_URL` (optional)
 

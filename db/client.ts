@@ -1,6 +1,7 @@
 import pg from 'pg';
 import type { Client as PgClient } from 'pg';
 import { MigrationError } from './migration-files.js';
+import { classifyConnectionError, DatabaseConnectionError } from './connection-errors.js';
 
 const { Client } = pg;
 
@@ -65,4 +66,27 @@ export async function applySearchPath(client: PgClient, schema: string): Promise
 
   // Set search_path to the schema.
   await client.query(`SET search_path TO "${schema}"`);
+}
+
+export async function connectDbClient(
+  client: PgClient,
+  connectionString: string,
+): Promise<void> {
+  try {
+    await client.connect();
+  } catch (error) {
+    throw new DatabaseConnectionError(
+      classifyConnectionError(error, connectionString),
+      { cause: error },
+    );
+  }
+}
+
+export async function closeDbClientQuietly(client: PgClient): Promise<void> {
+  try {
+    await client.end();
+  } catch {
+    // Closing a client whose connection already failed must never mask the
+    // original diagnosis. Swallowing here is deliberate.
+  }
 }

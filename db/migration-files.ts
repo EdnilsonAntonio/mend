@@ -9,6 +9,7 @@ export type MigrationErrorCode =
   | 'checksum-mismatch'
   | 'invalid-schema-name'
   | 'missing-connection-string'
+  | 'connection-failed'
   | 'unsupported-server-version'
   | 'sql-error';
 

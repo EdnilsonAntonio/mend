@@ -281,6 +281,97 @@ Heal rate, average tool calls, cost per heal, false-fix rate (must be 0).
 
 ---
 
+## Phase 8: Onboarding Hardening
+
+### Objective
+
+Phases 1–7 proved the system works. This phase proves a stranger can actually get it
+running — found by deliberately running a fresh-clone test end to end and treating every
+point of friction as a defect, not a footnote.
+
+**Context:** a fresh clone of the repo surfaced five separate stalls in one sitting. Four
+were the same root cause — `DATABASE_URL` / `OPENAI_API_KEY` not loaded into whichever
+terminal a given command was run in — and one was a genuinely silent failure in
+`db:migrate`. None of these are engine bugs; all of them are onboarding gaps that a
+person without a coach walking them through it in real time would likely not push past.
+
+---
+
+### Task 8.1 — Fail loudly on unreachable database in `db:migrate`
+
+**Status:** ✅ Done — see `plans/8.1.md`.
+
+Right now, `npm run db:migrate` against an unreachable Postgres instance exits with
+status `1` and **zero output** — no error message, no hint of what went wrong. Given
+this project's own core promise is "never fail silently," a migration tool that does
+exactly that is a real defect, not a rough edge.
+
+**Acceptance criteria:**
+* A connection failure (Postgres unreachable, wrong port, database does not exist)
+  prints a clear, specific message before exiting — e.g. `Could not reach
+  DATABASE_URL — is Postgres running and is the database created?`
+* The message distinguishes, where possible, between "can't reach the server" and
+  "server reachable, but the target database doesn't exist."
+* Exit code remains non-zero on failure; success still prints a clear "applied N
+  migrations" summary rather than nothing.
+* Covered by a test that simulates an unreachable `DATABASE_URL` and asserts on the
+  printed message, not just the exit code.
+
+---
+
+### Task 8.2 — Close the repeated `.env`-not-loaded failure mode
+
+**Status:** ⬜ Not started.
+
+The current setup requires `set -a && source .env && set +a` to be re-run in **every**
+new terminal, for every one of: root `tsx` scripts, `npm run heal`, and the dashboard.
+During onboarding this was missed four separate times in one sitting — strong evidence
+this is a real gap, not a one-off mistake.
+
+**Acceptance criteria:**
+* README's Setup section recommends `direnv` (or equivalent auto-loading) as the
+  primary path, not a parenthetical aside — with the manual `source` command kept as
+  an explicit fallback for anyone who'd rather not install another tool.
+* The dashboard (`dashboard/`) reads from its own `.env.local`, using Next.js's native
+  environment-file loading, instead of depending on a variable manually exported into
+  the shell it happens to be launched from.
+* `dashboard/README.md` updated to match — no more "export the same variables in the
+  shell you launch it from" as the primary instruction.
+* Re-running the fresh-clone Quickstart end to end (`db:migrate`, `heal`,
+  `dashboard:dev`) in freshly opened terminals, with only `.env` / `.env.local`
+  populated once, requires no manual `source` step to succeed.
+
+---
+
+### Task 8.3 — Add a Troubleshooting section to the README
+
+**Status:** ⬜ Not started.
+
+Turn the friction actually hit during the fresh-clone test into documentation, so the
+next person hits a known answer instead of a dead end.
+
+**Acceptance criteria:**
+* New `## Troubleshooting` section in the root `README.md`, placed after Quickstart.
+* Covers, at minimum, each of the following as a short symptom → cause → fix entry:
+  * `db:migrate` exits with no output.
+  * Dashboard shows "Set `DATABASE_URL`... then reload."
+  * `npm run heal` reports `DATABASE_URL is not set`.
+  * Every heal attempt comes back `failed`, including scenarios expected to heal
+    (→ check `OPENAI_API_KEY` isn't still the `your-open-ai-key` placeholder).
+* Each entry is short — symptom, one-line cause, exact command to fix — not prose.
+* Cross-linked from the Quickstart section ("hit an issue? see Troubleshooting")
+  rather than only discoverable by scrolling.
+
+---
+
+### Expected outcome of Phase 8
+
+A stranger following the README from a cold clone, with no one walking them through it,
+reaches a working dashboard on the first attempt — or, if something still goes wrong, the
+README itself gets them unstuck without outside help.
+
+---
+
 # Recommended Execution Order
 
 ```text
@@ -297,8 +388,13 @@ Phase 5  Delivery
 Phase 6  Dashboard
     ↓
 Phase 7  Evidence
+    ↓
+Phase 8  Onboarding Hardening   ← found by actually running the fresh-clone test
 ```
 
 The dashboard is deliberately last. It is the most visually satisfying part and the least
 technically risky — building it early would feel like progress while leaving every hard
-problem unsolved.   
+problem unsolved. Phase 8 exists for the same reason in spirit: it was tempting to call
+the project done at Phase 7, but "the engine works" and "a stranger can turn the key"
+turned out to be two different claims, and only actually testing the second one found
+the gap between them.
